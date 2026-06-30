@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Sentence Quest Boggle</title>
+<style>
+  :root{
+    --bg:#f4efe4;
+    --paper:#fffaf0;
+    --paper-2:#fbf2df;
+    --ink:#2b2823;
+    --muted:#6d675d;
+    --line:#d7cbb8;
+    --dark:#2f2a24;
+    --shadow:0 2px 0 rgba(45,35,20,.06),0 10px 26px rgba(68,51,25,.14);
+    --shadow-small:0 1px 0 rgba(45,35,20,.05),0 6px 16px rgba(68,51,25,.10);
+    --radius:18px;
+    --who:#4f7a6f;
+    --verb:#c2683f;
+    --time:#786aa7;
+    --thing:#3e6c90;
+    --describe:#b5783f;
+    --detail:#817f3f;
+    --joiner:#a85765;
+    --question:#5b6fae;
+    --opinion:#5e7d50;
+    --who-soft:#e5efec;
+    --verb-soft:#f6e3d8;
+    --time-soft:#ebe7f4;
+    --thing-soft:#e0ebf3;
+    --describe-soft:#f3e6d4;
+    --detail-soft:#eeeed9;
+    --joiner-soft:#f5e0e4;
+    --question-soft:#e4e8f5;
+    --opinion-soft:#e5eddf;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;overscroll-behavior:none;}
+  body{
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:radial-gradient(circle at 20% 0%,#fff8eb 0,#f4efe4 34%,#ece1cf 100%);
+    color:var(--ink);
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:manipulation;
+  }
+  button,input{font:inherit;}
+  .jp{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;}
+  .app{
+    min-height:100vh;
+    width:min(1180px,100%);
+    margin:0 auto;
+    padding:12px 14px 14px;
+    display:grid;
+    grid-template-rows:auto 1fr auto;
+    gap:10px;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .brand{display:flex;align-items:flex-end;gap:10px;white-space:nowrap;}
+  h1{font-size:25px;line-height:1;margin:0;font-weight:900;letter-spacing:-.04em;}
+  .subtitle{font-size:13px;color:var(--muted);font-weight:650;margin-bottom:1px;}
+  .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+  .pill{
+    border:1.5px solid var(--line);
+    background:rgba(255,250,240,.82);
+    border-radius:999px;
+    padding:8px 12px;
+    box-shadow:var(--shadow-small);
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-weight:800;
+  }
+  .pill small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:850;}
+  .pill .num{font-variant-numeric:tabular-nums;font-size:20px;line-height:1;}
+  .btn{
+    border:0;
+    border-radius:14px;
+    min-height:43px;
+    padding:10px 14px;
+    font-weight:850;
+    color:var(--ink);
+    background:var(--paper);
+    box-shadow:var(--shadow-small);
+    border:1.5px solid var(--line);
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    cursor:pointer;
+  }
+  .btn:active{transform:translateY(1px);filter:brightness(.98);}
+  .btn.primary{background:var(--dark);color:white;border-color:var(--dark);}
+  .btn.green{background:var(--who);color:white;border-color:var(--who);}
+  .btn.red{background:var(--joiner);color:white;border-color:var(--joiner);}
+  .btn:disabled{opacity:.43;filter:grayscale(.1);cursor:not-allowed;}
+
+  .main{
+    display:grid;
+    grid-template-columns:310px 1fr;
+    gap:12px;
+    min-height:0;
+  }
+  .panel{
+    background:rgba(255,250,240,.86);
+    border:1.5px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    min-height:0;
+  }
+  .mission-panel{padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden;}
+  .eyebrow{font-size:10px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);}
+  .mission-title{font-size:24px;font-weight:950;letter-spacing:-.04em;line-height:.98;margin:0;}
+  .mission-topic{display:inline-flex;width:max-content;padding:5px 10px;border-radius:999px;background:var(--question-soft);color:var(--question);font-size:12px;font-weight:900;}
+  .mission-text{font-size:14px;line-height:1.25;color:var(--muted);font-weight:650;margin:0;}
+  .goals{display:flex;flex-direction:column;gap:7px;}
+  .goal{
+    display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;
+    padding:9px 10px;border-radius:13px;background:var(--paper-2);border:1.5px solid var(--line);
+  }
+  .goal .check{
+    width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+    border:2px solid var(--line);font-size:14px;font-weight:950;color:transparent;background:white;
+  }
+  .goal.done{background:#eef4e9;border-color:#bdd3b4;}
+  .goal.done .check{background:var(--who);border-color:var(--who);color:white;}
+  .goal .gtext{font-size:13px;font-weight:800;line-height:1.16;}
+  .goal .jp{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px;}
+  .rules-card{
+    margin-top:auto;
+    padding:10px 11px;border-radius:14px;background:#fff;border:1.5px dashed var(--line);
+    color:var(--muted);font-size:12px;font-weight:700;line-height:1.3;
+  }
+  .rules-card b{color:var(--ink);}
+
+  .game-panel{display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;}
+  .board-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 14px;border-bottom:1.5px solid var(--line);background:rgba(255,250,240,.75);
+  }
+  .board-title{display:flex;align-items:center;gap:9px;min-width:0;}
+  .board-title b{font-size:15px;}
+  .board-title span{font-size:12px;color:var(--muted);font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .board-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+  .swap-note{font-size:12px;font-weight:900;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .swap-note strong{color:var(--verb);font-size:18px;font-variant-numeric:tabular-nums;}
+  .board-wrap{padding:12px;display:grid;grid-template-columns:minmax(430px,1fr) 300px;gap:12px;min-height:0;}
+  .board{
+    align-self:stretch;
+    display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:8px;
+    min-height:420px;
+  }
+  .tile{
+    position:relative;
+    border-radius:16px;
+    border:2px solid var(--line);
+    background:var(--paper);
+    box-shadow:var(--shadow-small);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:6px 5px;
+    min-height:72px;
+    touch-action:none;
+    cursor:pointer;
+    transition:transform .1s ease,box-shadow .1s ease,opacity .15s ease,background .15s ease,border-color .15s ease;
+  }
+  .tile:active{transform:scale(.98);}
+  .tile.selected{transform:translateY(-2px);box-shadow:var(--shadow);outline:4px solid rgba(47,42,36,.12);}
+  .tile.next-ok{outline:4px solid rgba(79,122,111,.16);}
+  .tile.bad{animation:shake .28s ease;}
+  .tile.swap-mode{outline:4px solid rgba(194,104,63,.20);}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
+  .tile .tag{
+    position:absolute;top:6px;left:7px;right:7px;text-align:center;
+    font-size:9px;text-transform:uppercase;letter-spacing:.045em;font-weight:950;color:white;
+    border-radius:999px;padding:2px 4px;line-height:1.05;
+  }
+  .tile .word{font-size:21px;font-weight:950;line-height:1.02;text-align:center;margin-top:12px;letter-spacing:-.02em;}
+  .tile .word.small{font-size:17px;}
+  .tile .step{
+    position:absolute;right:6px;bottom:5px;width:23px;height:23px;border-radius:50%;background:var(--dark);color:white;
+    display:grid;place-items:center;font-size:12px;font-weight:950;
+  }
+  .tile[data-type="who"]{background:var(--who-soft);border-color:color-mix(in srgb,var(--who) 50%,var(--line));}
+  .tile[data-type="verb"]{background:var(--verb-soft);border-color:color-mix(in srgb,var(--verb) 50%,var(--line));}
+  .tile[data-type="time"]{background:var(--time-soft);border-color:color-mix(in srgb,var(--time) 50%,var(--line));}
+  .tile[data-type="thing"]{background:var(--thing-soft);border-color:color-mix(in srgb,var(--thing) 50%,var(--line));}
+  .tile[data-type="describe"]{background:var(--describe-soft);border-color:color-mix(in srgb,var(--describe) 50%,var(--line));}
+  .tile[data-type="detail"]{background:var(--detail-soft);border-color:color-mix(in srgb,var(--detail) 50%,var(--line));}
+  .tile[data-type="joiner"]{background:var(--joiner-soft);border-color:color-mix(in srgb,var(--joiner) 50%,var(--line));}
+  .tile[data-type="question"]{background:var(--question-soft);border-color:color-mix(in srgb,var(--question) 50%,var(--line));}
+  .tile[data-type="opinion"]{background:var(--opinion-soft);border-color:color-mix(in srgb,var(--opinion) 50%,var(--line));}
+  .tile[data-type="who"] .tag{background:var(--who);}.tile[data-type="verb"] .tag{background:var(--verb);}
+  .tile[data-type="time"] .tag{background:var(--time);}.tile[data-type="thing"] .tag{background:var(--thing);}
+  .tile[data-type="describe"] .tag{background:var(--describe);}.tile[data-type="detail"] .tag{background:var(--detail);}
+  .tile[data-type="joiner"] .tag{background:var(--joiner);}.tile[data-type="question"] .tag{background:var(--question);}
+  .tile[data-type="opinion"] .tag{background:var(--opinion);}
+
+  .side-stack{display:grid;grid-template-rows:auto 1fr;gap:10px;min-height:0;}
+  .guide-mini{padding:10px;border-radius:16px;background:rgba(255,255,255,.72);border:1.5px solid var(--line);}
+  .legend{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+  .legend span{font-size:10px;font-weight:950;color:white;border-radius:999px;padding:4px 7px;white-space:nowrap;}
+  .word-bank{overflow:auto;padding:10px;border-radius:16px;background:rgba(255,255,255,.72);border:1.5px solid var(--line);}
+  .bank-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;}
+  .bank-title b{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+  .bank-list{display:flex;flex-direction:column;gap:7px;}
+  .kept{
+    background:var(--paper);border:1.5px solid var(--line);border-radius:13px;padding:9px 9px;box-shadow:var(--shadow-small);
+  }
+  .kept-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;}
+  .kept .sent{font-size:14px;font-weight:850;line-height:1.18;}
+  .kept .pts{white-space:nowrap;color:var(--who);font-weight:950;font-variant-numeric:tabular-nums;}
+  .kept-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;}
+  .badge{font-size:10px;font-weight:950;border-radius:999px;padding:3px 7px;background:#eee;color:var(--muted);}
+  .vote-btn{margin-left:auto;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:4px 7px;font-size:11px;font-weight:950;color:var(--ink);}
+  .vote-btn.on{background:var(--joiner);border-color:var(--joiner);color:#fff;}
+  .empty-bank{font-size:13px;color:var(--muted);font-weight:700;line-height:1.28;padding:6px 2px;}
+
+  .builder-bar{
+    padding:11px 14px;border-top:1.5px solid var(--line);background:rgba(255,250,240,.86);
+    display:grid;grid-template-columns:1fr auto;gap:11px;align-items:start;
+  }
+  .build-left{min-width:0;}
+  .path-row{display:flex;flex-wrap:wrap;gap:7px;min-height:38px;align-items:center;}
+  .path-empty{font-size:14px;color:var(--muted);font-weight:750;}
+  .chip{
+    border:2px solid var(--line);
+    background:#fff;
+    border-radius:13px;
+    padding:6px 9px;
+    display:inline-flex;
+    flex-direction:column;
+    gap:3px;
+    align-items:center;
+    justify-content:center;
+    min-height:43px;
+    box-shadow:var(--shadow-small);
+  }
+  .chip .chip-word{font-size:16px;font-weight:950;line-height:1;}
+  .chip .chip-tag{font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:950;color:var(--muted);line-height:1;}
+  .chip[data-type="who"]{border-color:var(--who);}.chip[data-type="verb"]{border-color:var(--verb);}
+  .chip[data-type="time"]{border-color:var(--time);}.chip[data-type="thing"]{border-color:var(--thing);}
+  .chip[data-type="describe"]{border-color:var(--describe);}.chip[data-type="detail"]{border-color:var(--detail);}
+  .chip[data-type="joiner"]{border-color:var(--joiner);}.chip[data-type="question"]{border-color:var(--question);}
+  .chip[data-type="opinion"]{border-color:var(--opinion);}
+  .choices{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .choice-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:950;color:var(--muted);margin-right:2px;}
+  .choice{
+    border:1.5px solid var(--time);background:#fff;color:var(--time);border-radius:999px;padding:5px 9px;
+    font-size:12px;font-weight:950;
+  }
+  .choice.sel{background:var(--time);color:white;}
+  .choice.action{border-color:var(--dark);background:var(--dark);color:#fff;}
+  .fix-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .fix-hint{font-size:12px;font-weight:850;color:var(--muted);}
+  .preview{
+    font-size:22px;font-weight:950;line-height:1.12;letter-spacing:-.03em;margin-top:8px;min-height:27px;
+  }
+  .preview .hint{font-size:14px;color:var(--muted);font-weight:750;letter-spacing:0;}
+  .warnings{margin-top:5px;font-size:12px;color:var(--joiner);font-weight:850;min-height:16px;}
+  .build-actions{display:flex;flex-direction:column;gap:7px;min-width:190px;}
+  .live-score{font-size:12px;font-weight:950;color:var(--muted);text-align:center;}
+  .live-score strong{font-size:28px;color:var(--who);font-variant-numeric:tabular-nums;}
+
+  .overlay{position:fixed;inset:0;background:rgba(43,40,35,.56);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;}
+  .overlay.open{display:flex;}
+  .modal{width:min(850px,100%);max-height:88vh;overflow:auto;background:var(--bg);border-radius:24px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.32);border:1.5px solid rgba(255,255,255,.35);}
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+  .modal h2{font-size:29px;margin:0;font-weight:950;letter-spacing:-.04em;line-height:1;}
+  .modal .lead{font-size:14px;color:var(--muted);font-weight:700;margin:5px 0 0;line-height:1.3;}
+  .close{width:38px;height:38px;border-radius:50%;border:0;background:var(--dark);color:#fff;font-size:22px;font-weight:900;}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .card{background:var(--paper);border:1.5px solid var(--line);border-radius:16px;padding:13px;box-shadow:var(--shadow-small);}
+  .card h3{font-size:15px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px;font-weight:950;}
+  .card .bigline{font-size:21px;font-weight:950;line-height:1.12;margin-bottom:7px;}
+  .card p,.card li{font-size:14px;font-weight:700;line-height:1.28;color:var(--muted);}
+  .card p{margin:0 0 7px;}.card ul{margin:0;padding-left:18px;}
+  .script-lines{display:flex;flex-direction:column;gap:7px;}
+  .script-line{background:#fff;border-radius:12px;border:1.5px solid var(--line);padding:9px 10px;font-size:16px;font-weight:850;}
+  .question-list{display:flex;flex-direction:column;gap:8px;}
+  .q-card{border-left:5px solid var(--question);background:#fff;border-radius:13px;padding:10px 12px;border-top:1.5px solid var(--line);border-right:1.5px solid var(--line);border-bottom:1.5px solid var(--line);}
+  .q-card b{font-size:17px;}.q-card div{font-size:12px;color:var(--muted);font-weight:750;margin-top:2px;}
+  .choice-modal{max-width:650px;}
+  .choice-context{background:#fff;border:1.5px dashed var(--line);border-radius:16px;padding:12px 14px;margin:12px 0;font-size:19px;font-weight:950;line-height:1.25;}
+  .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
+  .option-btn{border:2px solid var(--line);background:var(--paper);border-radius:16px;padding:14px 12px;font-size:18px;font-weight:950;text-align:left;box-shadow:var(--shadow-small);}
+  .option-btn:active{transform:translateY(1px);}
+  .modal-help-jp{font-size:14px;color:var(--muted);font-weight:800;margin-top:12px;line-height:1.35;}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;border-radius:14px;padding:12px 18px;font-weight:850;opacity:0;pointer-events:none;transition:all .2s ease;z-index:100;box-shadow:var(--shadow);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (max-width:980px){
+    .app{padding:10px;gap:8px;}
+    .main{grid-template-columns:1fr;}
+    .mission-panel{display:grid;grid-template-columns:1fr 1.2fr;align-items:start;}
+    .rules-card{margin-top:0;}
+    .board-wrap{grid-template-columns:1fr;}
+    .side-stack{grid-template-columns:1fr 1fr;grid-template-rows:auto;}
+    .board{min-height:390px;}
+  }
+  @media (max-width:760px){
+    header{align-items:flex-start;}
+    .brand{flex-direction:column;align-items:flex-start;gap:2px;}
+    .mission-panel{display:flex;}
+    .side-stack{grid-template-columns:1fr;}
+    .board{gap:6px;min-height:355px;}
+    .tile .word{font-size:16px}.tile .word.small{font-size:14px}.tile .tag{font-size:7.5px;left:4px;right:4px;}
+    .builder-bar{grid-template-columns:1fr;}
+    .build-actions{min-width:0;display:grid;grid-template-columns:1fr 1fr;}
+    .choice-grid{grid-template-columns:1fr;}
+    .cards{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>Sentence Quest Boggle</h1>
+      <div class="subtitle jp">ミッション → 文 → 会話</div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="jpToggleBtn">日本語 OFF</button>
+      <button class="btn" id="guideBtn">Guide <span class="jp">ガイド</span></button>
+      <button class="btn" id="resetBtn">Reset</button>
+      <div class="pill"><small>Team</small><span class="num" id="totalScore">0</span></div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel mission-panel">
+      <div>
+        <div class="eyebrow">Mission Card</div>
+        <div class="mission-topic" id="missionTopic">Topic</div>
+        <h2 class="mission-title" id="missionTitle">Mission</h2>
+        <p class="mission-text" id="missionText">Build sentences, then use them to talk.</p>
+      </div>
+      <div>
+        <div class="goals" id="goalList"></div>
+        <div class="rules-card" id="rulesCard"></div>
+      </div>
+    </section>
+
+    <section class="panel game-panel">
+      <div class="board-head">
+        <div class="board-title">
+          <b>The Board</b>
+          <span id="boardHint">Find a connected path that makes natural English.</span>
+        </div>
+        <div class="board-actions">
+          <div class="swap-note">Swaps <strong id="swapCount">2</strong></div>
+          <button class="btn" id="nudgeBtn">Nudge hint</button>
+          <button class="btn" id="swapBtn">Swap 1 tile</button>
+          <button class="btn primary" id="newMissionBtn">New mission</button>
+        </div>
+      </div>
+      <div class="board-wrap">
+        <div class="board" id="board"></div>
+        <div class="side-stack">
+          <div class="guide-mini">
+            <div class="eyebrow">Colour code</div>
+            <div class="legend" id="legend"></div>
+          </div>
+          <div class="word-bank">
+            <div class="bank-title"><b>Kept sentences</b><span class="badge" id="bankCount">0</span></div>
+            <div class="bank-list" id="bankList"></div>
+          </div>
+        </div>
+      </div>
+      <div class="builder-bar">
+        <div class="build-left">
+          <div class="path-row" id="pathRow"><span class="path-empty">Tap tiles to build a sentence path…</span></div>
+          <div class="choices" id="choices"></div>
+          <div class="preview" id="preview"><span class="hint">Your sentence appears here.</span></div>
+          <div class="warnings" id="warnings"></div>
+        </div>
+        <div class="build-actions">
+          <div class="live-score">This sentence <strong id="liveScore">0</strong> pts</div>
+          <button class="btn" id="clearBtn">Clear path</button>
+          <button class="btn primary" id="checkBtn">Check sentence</button>
+          <button class="btn green" id="keepBtn" disabled>Keep sentence</button>
+          <button class="btn red" id="finaleBtn" disabled>Finale →</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="finaleOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>Conversation Finale</h2>
+        <p class="lead jp">作った文を使って、最後は本当に会話する。</p>
+      </div>
+      <button class="close" data-close="finaleOverlay">×</button>
+    </div>
+    <div class="cards" id="finaleCards"></div>
+  </div>
+</div>
+
+<div class="overlay" id="guideOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>How to Play</h2>
+        <p class="lead">One device = one local team session. It saves only on this iPad/browser.</p>
+      </div>
+      <button class="close" data-close="guideOverlay">×</button>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <h3>Class roles</h3>
+        <ul>
+          <li><b>Finder:</b> points to possible paths.</li>
+          <li><b>Assembler:</b> taps the path, but stays silent.</li>
+          <li><b>Coach:</b> says if it sounds natural.</li>
+          <li><b>Speaker:</b> uses it in the finale.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Scoring</h3>
+        <ul>
+          <li>Valid sentence: 3 pts</li>
+          <li>Longer connected path: +1 each tile after 3</li>
+          <li>Mission goal hit: +2</li>
+          <li>Because/but/so: +2</li>
+          <li>Peer vote: +3</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Parts of speech</h3>
+        <div id="guideRows"></div>
+      </div>
+      <div class="card">
+        <h3>Teacher note</h3>
+        <p>This is intentionally “Boggle-ish,” not pure Boggle. Strict adjacency gives the puzzle feeling, but the board is weighted by topic so students are more likely to find natural sentences.</p>
+        <p class="jp">単語の意味ではなく、「使い方」を色で見る。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="choiceOverlay">
+  <div class="modal choice-modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="choiceTitle">Check sentence</h2>
+        <p class="lead" id="choiceLead">Choose the best option.</p>
+      </div>
+      <button class="close" data-close="choiceOverlay">×</button>
+    </div>
+    <div class="choice-context" id="choiceContext"></div>
+    <div class="choice-grid" id="choiceOptions"></div>
+    <div class="modal-help-jp jp" id="choiceHelpJP"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'sentenceQuestBoggle.v5';
+const TYPES = {
+  who:{label:'Who', jp:'だれ', color:'var(--who)'},
+  question:{label:'Question', jp:'質問', color:'var(--question)'},
+  opinion:{label:'Opinion', jp:'考え', color:'var(--opinion)'},
+  time:{label:'Time', jp:'時', color:'var(--time)'},
+  verb:{label:'Verb', jp:'動き', color:'var(--verb)'},
+  thing:{label:'Thing', jp:'もの', color:'var(--thing)'},
+  describe:{label:'Describe', jp:'様子', color:'var(--describe)'},
+  detail:{label:'Detail', jp:'くわしく', color:'var(--detail)'},
+  joiner:{label:'Joiner', jp:'つなぐ', color:'var(--joiner)'}
+};
+const GUIDE = [
+  ['who','Who','動作をする人。主語。','I / We / my friends'],
+  ['verb','Verb','動き・気持ちを表す。','like / go / try'],
+  ['time','Time','動詞の時や気持ちを変える。','past / future / can'],
+  ['thing','Thing','物・場所・こと。','food / school / games'],
+  ['describe','Describe','様子を説明する。','fun / delicious / hard'],
+  ['detail','Detail','場所・時・相手を足す。','after school / with friends'],
+  ['joiner','Joiner','2つの考えをつなぐ。','because / but / so'],
+  ['question','Question','相手に聞く形を作る。','Do you / What / Why'],
+  ['opinion','Opinion','自分の考えを出す。','I think / for me']
+];
+const BASE = {
+  who:['I','you','we','my friends','students','our class','my family'],
+  question:['Do you','What','Where','When','Why','How'],
+  opinion:['I think','for me','actually','maybe','really'],
+  time:['now','past','future','can','should','want to'],
+  joiner:['because','but','so','when','if','and'],
+  describe:['fun','good','easy','hard','interesting','relaxing','popular','new']
+};
+const THEMES = [
+  {
+    id:'food', topic:'Food', title:'Food Talk',
+    text:'Build food sentences. Then ask a partner about food they like or want to try.',
+    verbs:['like','want','eat','try','make','buy','share','choose'],
+    things:['pizza','ramen','lunch','snacks','ice cream','fruit','spicy food','school lunch','a new drink'],
+    describe:['delicious','sweet','spicy','cheap','popular','favorite','new','good'],
+    detail:['at lunch','after school','with friends','in Fukuoka','on weekends','at home'],
+    goals:[
+      {id:'topic', text:'Make one food sentence.', jp:'食べ物の文を1つ'},
+      {id:'reason', text:'Make one reason sentence with because / but / so.', jp:'理由の文を1つ'},
+      {id:'question', text:'Make one question for a partner.', jp:'相手への質問を1つ'}
+    ]
+  },
+  {
+    id:'weekend', topic:'Weekend', title:'Weekend Plans',
+    text:'Build sentences about free time. Then talk about what you actually want to do.',
+    verbs:['go','watch','play','visit','meet','sleep','study','try'],
+    things:['YouTube','games','music','a movie','a cafe','homework','sports','the mall','a park'],
+    describe:['fun','relaxing','busy','interesting','easy','hard','new','good'],
+    detail:['on Saturday','on Sunday','with friends','at home','in Tenjin','after lunch'],
+    goals:[
+      {id:'future', text:'Make one future / plan sentence.', jp:'予定の文を1つ'},
+      {id:'detail', text:'Add a time, place, or person detail.', jp:'いつ・どこ・誰と'},
+      {id:'question', text:'Make one question for a partner.', jp:'相手への質問を1つ'}
+    ]
+  },
+  {
+    id:'school', topic:'School', title:'School Life',
+    text:'Build school sentences. Then compare what is easy, hard, fun, or useful.',
+    verbs:['study','learn','practice','finish','join','help','talk about','use'],
+    things:['English','homework','club','class','a test','a presentation','school lunch','iPad','uniforms'],
+    describe:['easy','hard','useful','fun','busy','interesting','important','new'],
+    detail:['at school','in class','after school','with friends','today','before a test'],
+    goals:[
+      {id:'opinion', text:'Make one opinion sentence.', jp:'自分の考えの文を1つ'},
+      {id:'describe', text:'Use a describing word.', jp:'様子の言葉を使う'},
+      {id:'reason', text:'Use because / but / so.', jp:'つなぐ言葉を使う'}
+    ]
+  },
+  {
+    id:'friends', topic:'Friends', title:'Friend Energy',
+    text:'Build sentences about friends and classmates. Then use them to ask follow-up questions.',
+    verbs:['talk','help','meet','play','share','listen','laugh','go'],
+    things:['my friends','our class','club','music','a secret','photos','games','lunch'],
+    describe:['kind','funny','busy','nice','popular','quiet','interesting','good'],
+    detail:['with friends','after school','at lunch','online','in class','on weekends'],
+    goals:[
+      {id:'topic', text:'Make one sentence about people.', jp:'人についての文を1つ'},
+      {id:'detail', text:'Add where / when / with who.', jp:'詳しくする'},
+      {id:'question', text:'Make one question for a partner.', jp:'相手への質問を1つ'}
+    ]
+  },
+  {
+    id:'future', topic:'Future', title:'Future Me',
+    text:'Build future sentences. Then talk about dreams, plans, or small goals.',
+    verbs:['become','learn','visit','work','make','try','study','help'],
+    things:['English','a job','a university','money','a skill','a dream','a trip','a video'],
+    describe:['important','difficult','exciting','useful','new','possible','interesting','good'],
+    detail:['in the future','next year','after school','with friends','in Japan','one day'],
+    goals:[
+      {id:'future', text:'Make one future sentence.', jp:'未来の文を1つ'},
+      {id:'opinion', text:'Use I think / maybe / for me.', jp:'考えを入れる'},
+      {id:'reason', text:'Explain with because / but / so.', jp:'理由を足す'}
+    ]
+  },
+  {
+    id:'fukuoka', topic:'Fukuoka', title:'Local Picks',
+    text:'Build sentences about places and things nearby. Then recommend something to a partner.',
+    verbs:['go','visit','eat','try','see','buy','walk','take'],
+    things:['ramen','Tenjin','Ohori Park','a cafe','the subway','photos','a festival','shopping'],
+    describe:['popular','beautiful','cheap','busy','fun','delicious','famous','relaxing'],
+    detail:['in Fukuoka','with friends','on weekends','after school','near school','at night'],
+    goals:[
+      {id:'topic', text:'Make one Fukuoka/local sentence.', jp:'福岡の文を1つ'},
+      {id:'describe', text:'Use a describing word.', jp:'様子の言葉を使う'},
+      {id:'question', text:'Make one question for a partner.', jp:'相手への質問を1つ'}
+    ]
+  }
+];
+const LAYOUT = [
+  'who','time','verb','thing','detail',
+  'question','who','verb','thing','joiner',
+  'detail','opinion','time','verb','thing',
+  'describe','thing','verb','detail','question',
+  'who','joiner','time','verb','thing'
+];
+let state = {
+  missionIndex:0, board:[], path:[], bank:[], total:0, swaps:2, swapMode:false, votedId:null,
+  chosenForms:{}, chosenJoiners:{}, chosenLinks:{}, chosenSubject:null, chosenRewrite:null, japanese:false, checked:false, createdAt:Date.now()
+};
+function rand(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function shuffle(arr){return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
+function escapeHTML(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function capitalizeSentence(s){if(!s)return '';return s.charAt(0).toUpperCase()+s.slice(1)+(s.endsWith('?')?'':'.');}
+function currentMission(){return THEMES[state.missionIndex % THEMES.length];}
+function typePool(type, mission){
+  if(type==='verb') return mission.verbs;
+  if(type==='thing') return mission.things;
+  if(type==='describe') return mission.describe || BASE.describe;
+  if(type==='detail') return mission.detail;
+  return BASE[type] || [];
+}
+function chooseDifferent(pool, oldWord){
+  const options = pool.filter(w=>w!==oldWord);
+  return options.length ? rand(options) : rand(pool);
+}
+function makeTile(type, idx, mission, oldWord=null){
+  const pool = typePool(type, mission);
+  return {id:'t'+idx+'_'+Math.random().toString(36).slice(2,7), type, word:oldWord==null?rand(pool):chooseDifferent(pool, oldWord), r:Math.floor(idx/5), c:idx%5};
+}
+function allowedAfter(type){
+  return {
+    question:['who','verb','thing','time'],
+    who:['time','opinion','verb'],
+    opinion:['who','time','verb','thing'],
+    time:['verb'],
+    verb:['thing','describe','detail','joiner'],
+    describe:['thing','detail','joiner'],
+    thing:['detail','describe','joiner'],
+    detail:['joiner'],
+    joiner:['who','opinion','verb','thing','describe']
+  }[type] || [];
+}
+function allowedBefore(type){
+  return Object.keys(TYPES).filter(t=>allowedAfter(t).includes(type));
+}
+function smartSwapType(tile){
+  const tiles = pathTiles();
+  const currentIndex = tiles.findIndex(t=>t.id===tile.id);
+  let candidates=[];
+  if(currentIndex>=0){
+    const prev = tiles[currentIndex-1];
+    const next = tiles[currentIndex+1];
+    if(prev && next){
+      candidates = allowedAfter(prev.type).filter(t=>allowedBefore(next.type).includes(t));
+    } else if(prev){
+      candidates = allowedAfter(prev.type);
+    } else if(next){
+      candidates = allowedBefore(next.type);
+    }
+  } else if(tiles.length){
+    const touching = tiles.filter(t=>adjacent(t,tile));
+    if(touching.length){
+      candidates = touching.flatMap(t=>allowedAfter(t.type));
+    }
+  }
+  candidates = candidates.filter(t=>typePool(t,currentMission()).length);
+  if(!candidates.length) return tile.type;
+  // Prefer useful missing pieces, but do not force it every time.
+  const currentTypes = new Set(tiles.map(t=>t.type));
+  const missingPriority = ['verb','thing','who','joiner','describe','detail','time','opinion','question'];
+  const useful = missingPriority.find(t=>candidates.includes(t) && !currentTypes.has(t));
+  return useful || rand(candidates);
+}
+function newBoard(keepMission=false){
+  if(!keepMission) state.missionIndex = Math.floor(Math.random()*THEMES.length);
+  const mission = currentMission();
+  state.board = LAYOUT.map((type,idx)=>makeTile(type,idx,mission));
+  // Make the centre area extra mission-friendly.
+  state.board[12] = makeTile('time',12,mission);
+  state.board[13] = makeTile('verb',13,mission);
+  state.board[14] = makeTile('thing',14,mission);
+  state.path=[]; state.swaps=2; state.swapMode=false; clearGrammarChoices(); state.checked=false;
+}
+function clearGrammarChoices(){
+  state.chosenForms={};
+  state.chosenJoiners={};
+  state.chosenLinks={};
+  state.chosenSubject=null;
+  state.chosenRewrite=null;
+}
+function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}}
+function load(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
+  }catch(e){}
+  return false;
+}
+function adjacent(a,b){return Math.abs(a.r-b.r)<=1 && Math.abs(a.c-b.c)<=1 && !(a.r===b.r && a.c===b.c);}
+function pathTiles(){return state.path.map(id=>state.board.find(t=>t.id===id)).filter(Boolean);}
+function addTile(tile){
+  if(state.swapMode){ swapTile(tile); return; }
+  if(state.path.includes(tile.id)){
+    if(state.path[state.path.length-1]===tile.id){ state.path.pop(); state.checked=false; clearGrammarChoices(); render(); save(); }
+    else showToast('You can only undo the last tile.');
+    return;
+  }
+  const selected = pathTiles();
+  if(selected.length){
+    const last = selected[selected.length-1];
+    if(!adjacent(last,tile)){ flashTile(tile.id); showToast('Boggle rule: next tile must touch the last tile.'); return; }
+  }
+  state.path.push(tile.id); state.checked=false; clearGrammarChoices(); render(); save();
+}
+function flashTile(id){
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if(!el) return;
+  el.classList.remove('bad'); void el.offsetWidth; el.classList.add('bad');
+}
+function swapTile(tile){
+  if(state.swaps<=0){showToast(state.japanese?'交換はもうありません。':'No swaps left.');state.swapMode=false;render();return;}
+  const idx = state.board.findIndex(t=>t.id===tile.id);
+  if(idx<0) return;
+  const newType = smartSwapType(tile);
+  let replacement = makeTile(newType, idx, currentMission(), newType===tile.type ? tile.word : null);
+  // Absolute guard: never replace a swapped tile with the exact same type + word.
+  let guard = 0;
+  while(replacement.type===tile.type && replacement.word===tile.word && guard<12){
+    replacement = makeTile(newType, idx, currentMission(), tile.word);
+    guard++;
+  }
+  if(replacement.type===tile.type && replacement.word===tile.word){
+    const fallbackType = Object.keys(TYPES).find(t=>t!==tile.type && typePool(t,currentMission()).length);
+    replacement = makeTile(fallbackType || tile.type, idx, currentMission(), tile.word);
+  }
+  state.board[idx]=replacement;
+  state.path = state.path.filter(id=>id!==tile.id);
+  state.swaps--; state.swapMode=false; state.checked=false; clearGrammarChoices();
+  showToast(state.japanese?'タイルを交換しました。':'Tile swapped. Use what you get!');
+  render(); save();
+}
+function beForSubject(subject){
+  const s = (subject || '').toLowerCase();
+  if(s==='i') return 'am';
+  if(['he','she','it','our class','my family'].includes(s)) return 'is';
+  return 'are';
+}
+function simplePresentVerb(verb, subject){
+  const s = (subject || '').toLowerCase();
+  if(!['he','she','it','our class','my family'].includes(s)) return verb;
+  const special = {have:'has',go:'goes',do:'does',watch:'watches',study:'studies',try:'tries'};
+  if(special[verb]) return special[verb];
+  if(/(s|x|ch|sh|o)$/.test(verb)) return verb+'es';
+  if(/[^aeiou]y$/.test(verb)) return verb.slice(0,-1)+'ies';
+  return verb+'s';
+}
+function verbForms(verb, timeWord, subject){
+  const ing = {go:'going',eat:'eating',make:'making',take:'taking',use:'using',become:'becoming',come:'coming',write:'writing',choose:'choosing',share:'sharing',meet:'meeting',visit:'visiting',walk:'walking',watch:'watching',play:'playing',study:'studying',try:'trying',buy:'buying',talk:'talking',talk_about:'talking about',listen:'listening',laugh:'laughing',sleep:'sleeping',work:'working',learn:'learning',practice:'practicing',finish:'finishing',join:'joining',help:'helping',see:'seeing',like:'liking',want:'wanting'};
+  const past = {go:'went',eat:'ate',make:'made',buy:'bought',meet:'met',sleep:'slept',study:'studied',try:'tried',become:'became',take:'took',see:'saw',learn:'learned',visit:'visited',work:'worked',help:'helped',play:'played',watch:'watched',like:'liked',want:'wanted',finish:'finished',join:'joined',talk:'talked',talk_about:'talked about',use:'used',share:'shared',choose:'chose',walk:'walked',listen:'listened',laugh:'laughed',practice:'practiced'};
+  const key = verb.replace(/ /g,'_');
+  const base = verb;
+  const be = beForSubject(subject);
+  const prog = be+' '+(ing[key]||ing[verb]||verb+'ing');
+  if(timeWord==='past') return [past[key]||past[verb]||verb+'ed'];
+  if(timeWord==='future') return ['will '+base, be+' going to '+base];
+  if(timeWord==='can') return ['can '+base, "can't "+base];
+  if(timeWord==='should') return ['should '+base, 'should not '+base];
+  if(timeWord==='want to') return [simplePresentVerb('want', subject)+' to '+base];
+  if(timeWord==='now') return [simplePresentVerb(base, subject), prog];
+  return [simplePresentVerb(base, subject)];
+}
+function subjectOptions(tiles){
+  const mission = currentMission().id;
+  let opts = ['I','we','my friends','students'];
+  if(mission==='friends') opts = ['I','we','my friends','our class'];
+  if(mission==='school') opts = ['I','we','students','our class'];
+  if(mission==='future') opts = ['I','we','students','my friends'];
+  return opts;
+}
+
+function startsWithJoiner(tiles){ return tiles[0] && tiles[0].type==='joiner'; }
+function isQuestionStarter(s){ return /^(do you|did you|can you|can we|should we|will you|are you going to|would you)\b/i.test(s || ''); }
+function isQuestionWord(w){ return /^(what|where|when|why|how)$/i.test(w || ''); }
+function safeOption(value,label){ return {value, label:label || value}; }
+function optionValue(o){ return (o && typeof o==='object') ? o.value : o; }
+function optionLabel(o){ return (o && typeof o==='object') ? (o.label || o.value) : o; }
+function articleFix(text){
+  return text.replace(/\ba university\b/g,'a university')
+             .replace(/\ba apple\b/g,'an apple')
+             .replace(/\ba interesting\b/g,'an interesting')
+             .replace(/\ba important\b/g,'an important');
+}
+function firstOfType(tiles,type){ return tiles.find(t=>t.type===type); }
+function hasTileType(tiles,type){ return tiles.some(t=>t.type===type); }
+function autoLinkOptionsFor(verbWord, nounWord){
+  let options=[];
+  if(verbWord==='go' || verbWord==='come') options=['to'];
+  else if(verbWord==='walk') options=looksLikePlace(nounWord)?['to','in','around']:[];
+  else if(verbWord==='meet') options=looksLikePerson(nounWord)?[]:['at','in'];
+  else if(verbWord==='work' || verbWord==='study') options=looksLikePlace(nounWord)?['at','in']:[];
+  else if(verbWord==='talk about') options=[];
+  else if(verbWord==='talk') options=looksLikePerson(nounWord)?['with']:['about'];
+  else if(verbWord==='help') options=['with'];
+  else if(verbWord==='play') options=looksLikePerson(nounWord)?['with']:[];
+  else if(verbWord==='share') options=looksLikePerson(nounWord)?['with']:[];
+  else if(verbWord==='listen') options=['to'];
+  else if(verbWord==='laugh') options=looksLikePerson(nounWord)?['with']:[];
+  else if(verbWord==='sleep') options=looksLikePlace(nounWord)?['at','in']:[];
+  return [...new Set(options)];
+}
+function verbPhraseForStarter(verb, timeWord, starter){
+  const base = verb;
+  const lower = (starter || '').toLowerCase();
+  if(lower==='did you') return timeWord==='want to' ? 'want to '+base : base;
+  if(lower==='do you'){
+    if(timeWord==='want to') return 'want to '+base;
+    return base;
+  }
+  if(lower==='can you' || lower==='can we' || lower==='should we' || lower==='will you') return base;
+  if(lower==='are you going to') return base;
+  if(timeWord==='future') return 'will '+base;
+  if(timeWord==='can') return 'can '+base;
+  if(timeWord==='should') return 'should '+base;
+  if(timeWord==='want to') return simplePresentVerb('want', starter)+' to '+base;
+  if(timeWord==='past') return verbForms(base,'past',starter)[0];
+  return simplePresentVerb(base, starter);
+}
+function composeWithStarter(tiles, starter){
+  const time = firstOfType(tiles,'time');
+  const timeWord = time ? time.word : null;
+  const verb = firstOfType(tiles,'verb');
+  const words=[];
+  if(!verb) return '';
+  if(starter) words.push(starter);
+  let lastVerbWord = null;
+  tiles.forEach((t,i)=>{
+    if(['who','question','opinion','time'].includes(t.type)) return;
+    if(t.type==='joiner'){
+      // A leading joiner is a fragment. Middle joiners are kept for students to handle.
+      if(i>0) words.push(t.word);
+      return;
+    }
+    if(t.type==='verb'){
+      const phrase = verbPhraseForStarter(t.word,timeWord,starter || 'I');
+      words.push(phrase); lastVerbWord=t.word; return;
+    }
+    if(t.type==='describe'){
+      const prevThing = tiles.slice(0,i).reverse().find(x=>x.type==='thing');
+      const nextThing = tiles.slice(i+1).find(x=>x.type==='thing');
+      if(nextThing){ words.push(t.word); }
+      else if(prevThing){ words.push(beForSubject(prevThing.word)); words.push(t.word); }
+      else words.push(t.word);
+      return;
+    }
+    if(t.type==='thing'){
+      const v = lastVerbBefore(tiles,i);
+      if(v){
+        const between = tiles.slice(v.index+1,i);
+        const alreadyLinked = between.some(x=>x.type==='detail' && /^(at|in|on|to|with|near|after|before)\b/i.test(x.word));
+        const opts = alreadyLinked ? [] : autoLinkOptionsFor(v.tile.word,t.word);
+        if(opts.length) words.push(opts[0]);
+      }
+      words.push(t.word); return;
+    }
+    if(t.type==='detail'){ words.push(t.word); return; }
+  });
+  let sentence = articleFix(words.join(' ').replace(/\s+/g,' ').trim());
+  if(isQuestionStarter(starter)) sentence += '?';
+  return sentence;
+}
+function starterOptions(tiles){
+  const time = firstOfType(tiles,'time');
+  const timeWord = time ? time.word : null;
+  const verb = firstOfType(tiles,'verb');
+  if(!verb || startsWithJoiner(tiles)) return [];
+  const baseSubjects = subjectOptions(tiles);
+  let starters = [...baseSubjects];
+  if(!timeWord || timeWord==='now' || timeWord==='want to') starters.push('Do you','Did you');
+  else if(timeWord==='past') starters.push('Did you');
+  else if(timeWord==='can') starters.push('Can you','Can we');
+  else if(timeWord==='should') starters.push('Should we');
+  else if(timeWord==='future') starters.push('Will you','Are you going to');
+  const seen = new Set();
+  return starters.map(st=>{
+    const text = formatSentence(composeWithStarter(tiles,st));
+    return text ? safeOption(text,text) : null;
+  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,6);
+}
+function questionRewriteOptions(tiles){
+  const first = tiles[0];
+  if(!first || first.type!=='question' || !isQuestionWord(first.word)) return [];
+  const verb = firstOfType(tiles,'verb');
+  if(!verb) return [];
+  const rest = tiles.slice(1);
+  const q = first.word;
+  const time = firstOfType(tiles,'time');
+  const timeWord = time ? time.word : null;
+  let starters = [];
+  if(timeWord==='can') starters = [`${q} can you`, `${q} can we`];
+  else if(timeWord==='should') starters = [`${q} should we`];
+  else if(timeWord==='future') starters = [`${q} will you`, `${q} are you going to`];
+  else if(timeWord==='past') starters = [`${q} did you`];
+  else starters = [`${q} do you`, `${q} did you`, `${q} should we`];
+  const fakeTiles = rest;
+  const seen = new Set();
+  return starters.map(st=>{
+    const parts = st.split(' ');
+    // composeWithStarter expects starters like Do you / Should we; keep the question word outside.
+    const starter = parts.slice(1).join(' ');
+    const core = composeWithStarter(fakeTiles, starter);
+    if(!core) return null;
+    const coreNoStarter = core.replace(new RegExp('^'+starter.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s+','i'),'');
+    const text = formatSentence(`${q} ${starter} ${coreNoStarter}`.replace(/\s+/g,' ').trim().replace(/\.$/, '?'));
+    return safeOption(text,text.replace(/\.$/, '?'));
+  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,5);
+}
+const PLACE_WORDS = ['school','a cafe','the mall','a park','Ohori Park','Tenjin','Fukuoka','a university','the subway','a festival','home','in Japan','near school','a trip'];
+const PERSON_WORDS = ['my friends','students','our class','my family','friend'];
+function looksLikePlace(word){
+  return PLACE_WORDS.some(p=>word===p || word.includes(p)) || /park|cafe|school|mall|university|tenjin|fukuoka|subway|festival|home/i.test(word);
+}
+function looksLikePerson(word){
+  return PERSON_WORDS.some(p=>word===p || word.includes(p)) || /friend|family|student|class/i.test(word);
+}
+function lastVerbBefore(tiles, idx){
+  for(let i=idx-1;i>=0;i--) if(tiles[i].type==='verb') return {tile:tiles[i], index:i};
+  return null;
+}
+function linkKey(verb, thing){ return 'link|'+verb.id+'|'+thing.id; }
+function linkRequirement(tiles, thingIndex){
+  const thing = tiles[thingIndex];
+  if(!thing || thing.type!=='thing') return null;
+  const v = lastVerbBefore(tiles, thingIndex);
+  if(!v) return null;
+  const between = tiles.slice(v.index+1, thingIndex);
+  if(between.some(t=>t.type==='detail' && /^(at|in|on|to|with|near|after|before)\b/i.test(t.word))) return null;
+  const verb = v.tile.word;
+  const noun = thing.word;
+  let options = autoLinkOptionsFor(verb, noun);
+  return options.length ? {key:linkKey(v.tile, thing), verb:v.tile, thing, options} : null;
+}
+function joinerKey(tile,index){ return 'joiner|'+tile.id+'|'+index; }
+function joinerForms(tiles,index){
+  const tile = tiles[index];
+  const next = tiles[index+1];
+  if(!tile || tile.type!=='joiner' || !next) return [];
+  if(index===0) return [];
+  const j = tile.word;
+  if(next.type==='who' || next.type==='question' || next.type==='opinion') return [];
+  if(next.type==='describe'){
+    const prevThing = [...tiles.slice(0,index)].reverse().find(t=>t.type==='thing');
+    const pluralish = prevThing && /friends|students|games|snacks|photos|uniforms|sports/i.test(prevThing.word);
+    const main = pluralish ? [`${j} they are`, `${j} those are`] : [`${j} it is`, `${j} that is`];
+    return [...main, `${j} I think it is`];
+  }
+  if(next.type==='verb') return [`${j} I`, `${j} we`, `${j} they`];
+  if(next.type==='thing'){
+    const hasLaterVerb = tiles.slice(index+1).some(t=>t.type==='verb');
+    if(hasLaterVerb) return [];
+    return [`${j} I like`, `${j} we need`, `${j} it is about`];
+  }
+  if(next.type==='detail') return [`${j} it happens`, `${j} we go`];
+  return [];
+}
+function choiceQueue(){
+  const tiles = pathTiles();
+  const q=[];
+  if(!tiles.length || state.chosenRewrite) return q;
+  if(startsWithJoiner(tiles)) return q;
+  const hasVerb = tiles.some(t=>t.type==='verb');
+  const hasQuestion = tiles.some(t=>t.type==='question');
+  const hasSubject = tiles.some(t=>t.type==='who');
+  if(!hasVerb) return q;
+
+  // Question words like Why/What need do/did/can/should, not raw "Why buy fruit?"
+  if(tiles[0] && tiles[0].type==='question' && isQuestionWord(tiles[0].word)){
+    const opts = questionRewriteOptions(tiles);
+    if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
+    return q;
+  }
+
+  // Missing Who is not always an error. Offer full natural sentence/question frames.
+  if(!hasSubject && !hasQuestion){
+    const opts = starterOptions(tiles);
+    if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
+    return q;
+  }
+
+  const subjectTile = tiles.find(t=>t.type==='who');
+  const questionTile = tiles.find(t=>t.type==='question');
+  const subject = state.chosenSubject || (subjectTile && subjectTile.word) || (questionTile && questionTile.word==='Do you' ? 'you' : 'I');
+  const time = tiles.find(t=>t.type==='time');
+  if(time){
+    tiles.filter(t=>t.type==='verb').forEach(v=>{
+      const k = v.id+'|'+time.word;
+      if(!state.chosenForms[k]) q.push({kind:'verb', key:k, verb:v, time, options:verbForms(v.word,time.word,subject)});
+    });
+  }
+  tiles.forEach((t,i)=>{
+    if(t.type==='thing'){
+      const req = linkRequirement(tiles,i);
+      if(req && !state.chosenLinks[req.key]) q.push({kind:'link', ...req});
+    }
+  });
+  tiles.forEach((t,i)=>{
+    if(t.type==='joiner'){
+      const k = joinerKey(t,i);
+      const opts = joinerForms(tiles,i);
+      if(opts.length && !state.chosenJoiners[k]) q.push({kind:'joiner', key:k, joiner:t, options:opts});
+    }
+  });
+  return q;
+}
+function pathHasBlank(text){ return /___/.test(text || ''); }
+function teacherLine(){ return state.japanese ? ' まだ分からない？先生に聞いてください。' : ' Still confused? Ask the teacher.'; }
+function sentenceData(){
+  const tiles = pathTiles();
+  if(state.chosenRewrite){
+    const text = state.chosenRewrite.replace(/[.]$/,'');
+    const analysis = analyse(tiles, text, false, true);
+    return {tiles,text,analysis,needsChoice:false,time:firstOfType(tiles,'time'),subject:null,hasQuestion:/[?]$/.test(state.chosenRewrite)};
+  }
+  const time = tiles.find(t=>t.type==='time');
+  const subject = tiles.find(t=>t.type==='who');
+  const hasQuestion = tiles.some(t=>t.type==='question') || isQuestionStarter(state.chosenSubject);
+  const firstQuestion = tiles.find(t=>t.type==='question');
+  const pending = choiceQueue();
+  const needsChoice = pending.length>0;
+  const words=[];
+  const shouldInsertSubject = !subject && !!state.chosenSubject;
+  let insertedSubject = false;
+  tiles.forEach((t,i)=>{
+    if(i===0 && t.type==='opinion'){
+      words.push(t.word);
+      if(shouldInsertSubject){ words.push(state.chosenSubject); insertedSubject = true; }
+      return;
+    }
+    if(i===0 && shouldInsertSubject && !insertedSubject){ words.push(state.chosenSubject); insertedSubject = true; }
+    if(t.type==='time') return;
+    if(t.type==='verb' && time){
+      const k = t.id+'|'+time.word;
+      words.push(state.chosenForms[k] || '___');
+    } else if(t.type==='joiner'){
+      const k = joinerKey(t,i);
+      const opts = joinerForms(tiles,i);
+      words.push(opts.length ? (state.chosenJoiners[k] || '___') : t.word);
+    } else if(t.type==='thing'){
+      const req = linkRequirement(tiles,i);
+      if(req){ words.push(state.chosenLinks[req.key] || '___'); }
+      words.push(t.word);
+    } else words.push(t.word);
+  });
+  let text = words.join(' ').replace(/\s+/g,' ').trim();
+  if(firstQuestion || isQuestionStarter(state.chosenSubject)){
+    if(!text.endsWith('?')) text = text + '?';
+  }
+  const analysis = analyse(tiles, text, needsChoice);
+  return {tiles,text,analysis,needsChoice,time,subject,hasQuestion};
+}
+function analyse(tiles,text,needsChoice=false,forceValid=false){
+  const types = new Set(tiles.map(t=>t.type));
+  const words = new Set(tiles.map(t=>t.word));
+  const chosenQuestion = isQuestionStarter(state.chosenSubject) || /[?]$/.test(state.chosenRewrite || text || '');
+  const hasSubject = types.has('who') || (!!state.chosenSubject && !chosenQuestion) || forceValid;
+  const hasVerb = types.has('verb');
+  const hasQuestion = types.has('question') || chosenQuestion;
+  const hasThing = types.has('thing');
+  const hasDetail = types.has('detail');
+  const hasJoiner = types.has('joiner');
+  const hasDescribe = types.has('describe');
+  const hasOpinion = types.has('opinion');
+  const hasFuture = [...words].some(w=>['future','want to','can','should'].includes(w)) || /will|going to|want to|can|should/.test(text);
+  const mission = currentMission();
+  let valid = false;
+  let warning = '';
+  if(forceValid) valid = true;
+  else if(needsChoice) warning = 'Choose the missing grammar choices first.';
+  else if(tiles.length<2) warning = 'Try at least 2 connected tiles.';
+  else if(pathHasBlank(text)) warning = 'Choose the missing grammar choices first.';
+  else if(startsWithJoiner(tiles)) warning = 'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.';
+  else if(hasJoiner && tiles[tiles.length-1]?.type==='joiner') warning = 'A joiner needs another idea after it.';
+  else if(hasQuestion) valid = hasVerb || words.has('Do you');
+  else valid = hasSubject && hasVerb;
+  if(!valid && !warning){
+    if(!hasVerb) warning = hasQuestion ? 'A question needs an action word.' : 'This needs a Verb tile.';
+    else if(!hasSubject && !hasQuestion) warning = 'This needs a starter. Press Check sentence to choose one.';
+    else warning = 'This does not sound complete yet.';
+  }
+  const hits = new Set();
+  if(valid){
+    if((mission.id==='food' && [...words].some(w=>mission.things.includes(w))) || (mission.id==='fukuoka' && [...words].some(w=>mission.things.includes(w))) || ['friends','school'].includes(mission.id)) hits.add('topic');
+    if(hasJoiner || ['because','but','so'].some(w=>words.has(w))) hits.add('reason');
+    if(hasQuestion) hits.add('question');
+    if(hasDetail) hits.add('detail');
+    if(hasDescribe) hits.add('describe');
+    if(hasOpinion) hits.add('opinion');
+    if(hasFuture) hits.add('future');
+  }
+  return {valid,warning,hits:[...hits],hasJoiner,hasQuestion,hasDetail,hasDescribe,hasOpinion,hasFuture};
+}
+function scoreCurrent(){
+  const d = sentenceData();
+  if(d.needsChoice || !d.analysis.valid) return 0;
+  let pts = 3;
+  pts += Math.max(0,d.tiles.length-3);
+  pts += d.analysis.hits.length ? 2 : 0;
+  if(d.analysis.hasJoiner) pts += 2;
+  if(d.analysis.hasQuestion) pts += 1;
+  return pts;
+}
+function goalProgress(){
+  const mission = currentMission();
+  const done = new Set();
+  state.bank.forEach(b=>(b.hits||[]).forEach(h=>done.add(h)));
+  return mission.goals.map(g=>({...g,done:done.has(g.id)}));
+}
+function missionComplete(){return goalProgress().every(g=>g.done);}
+function keepSentence(){
+  const d = sentenceData();
+  if(choiceQueue().length){ checkSentence(); return; }
+  if(!state.checked){ showToast(state.japanese?'先に文をチェックしてください。':'Check the sentence first.'); return; }
+  if(!d.analysis.valid){showToast(warningText(d.analysis.warning) || 'Not quite a sentence yet.');return;}
+  const text = formatSentence(d.text);
+  const pts = scoreCurrent();
+  const item = {id:'s'+Date.now()+Math.random().toString(36).slice(2,5), text, pts, hits:d.analysis.hits, tiles:d.tiles.map(t=>({type:t.type,word:t.word})), mission:currentMission().topic};
+  state.bank.push(item); state.total += pts; state.path=[]; clearGrammarChoices(); state.checked=false;
+  showToast('Kept! +' + pts + ' points'); render(); save();
+}
+function formatSentence(text){
+  text = text.replace(/\s+\?/g,'?').trim();
+  if(!text) return '';
+  const end = text.endsWith('?') ? '' : '.';
+  return text.charAt(0).toUpperCase()+text.slice(1)+end;
+}
+function voteSentence(id){
+  if(state.votedId===id){showToast('Already voted for this one.');return;}
+  if(state.votedId){showToast('Only one peer-vote bonus per session.');return;}
+  const b = state.bank.find(x=>x.id===id); if(!b) return;
+  b.pts += 3; b.voted=true; state.total += 3; state.votedId=id;
+  showToast('Peer vote bonus! +3'); render(); save();
+}
+function generatedQuestions(){
+  const qs=[]; const seen=new Set();
+  const topic=currentMission().topic.toLowerCase();
+  state.bank.forEach(b=>{
+    const thing=(b.tiles||[]).find(t=>t.type==='thing');
+    const verb=(b.tiles||[]).find(t=>t.type==='verb');
+    const detail=(b.tiles||[]).find(t=>t.type==='detail');
+    if(thing && !seen.has('thing'+thing.word)){ qs.push({q:`What do you think about ${thing.word}?`, hint:'I think ___ because ___.'}); seen.add('thing'+thing.word); }
+    if(verb && thing && !seen.has('verbthing'+verb.word+thing.word)){ qs.push({q:`Do you ${verb.word} ${thing.word}?`, hint:'Yes, I do. / No, I don\'t. Why?'}); seen.add('verbthing'+verb.word+thing.word); }
+    if(detail && !seen.has('detail'+detail.word)){ qs.push({q:`What do you usually do ${detail.word}?`, hint:'I usually ___.'}); seen.add('detail'+detail.word); }
+  });
+  const backup = [
+    {q:`What ${topic} do you like?`, hint:'I like ___.'},
+    {q:`What do you want to try?`, hint:'I want to try ___ because ___.'},
+    {q:'What about you?', hint:'Use this after your answer.'},
+    {q:'Why?', hint:'Answer with because ___.'},
+    {q:'Which sentence is the most interesting?', hint:'I choose ___ because ___.'}
+  ];
+  return qs.concat(backup).slice(0,6);
+}
+function openFinale(){
+  const cards=document.getElementById('finaleCards');
+  const sentences=state.bank.slice(-6);
+  const q=generatedQuestions();
+  cards.innerHTML = `
+    <div class="card">
+      <h3>Your sentence board</h3>
+      ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):'<p>No sentences yet. Keep at least one first.</p>'}
+    </div>
+    <div class="card">
+      <h3>Conversation script</h3>
+      <div class="script-lines">
+        <div class="script-line">A: I choose this sentence: “_____.”</div>
+        <div class="script-line">B: ${escapeHTML(q[0]?.q || 'What about you?')}</div>
+        <div class="script-line">A: I think _____ because _____.</div>
+        <div class="script-line">B: Really? / Same here. Why?</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Ask these</h3>
+      <div class="question-list">${q.map(x=>`<div class="q-card"><b>${escapeHTML(x.q)}</b><div>${escapeHTML(x.hint)}</div></div>`).join('')}</div>
+    </div>
+    <div class="card">
+      <h3>Peer vote finale</h3>
+      <p>Each group reads their best sentence. Other groups ask one follow-up question. Vote for the most interesting sentence, not the longest one.</p>
+      <ul>
+        <li>Interesting idea?</li>
+        <li>Natural English?</li>
+        <li>Good follow-up answer?</li>
+      </ul>
+    </div>`;
+  document.getElementById('finaleOverlay').classList.add('open');
+}
+function render(){
+  const mission = currentMission();
+  document.getElementById('missionTopic').textContent=mission.topic;
+  document.getElementById('missionTitle').textContent=mission.title;
+  document.getElementById('missionText').textContent=mission.text;
+  document.getElementById('totalScore').textContent=state.total;
+  document.getElementById('swapCount').textContent=state.swaps;
+  document.getElementById('swapBtn').classList.toggle('red',state.swapMode);
+  document.getElementById('swapBtn').textContent=state.swapMode?'Tap tile to swap':'Swap 1 tile';
+  document.getElementById('finaleBtn').disabled=!missionComplete();
+  renderLanguage(); renderGoals(); renderBoard(); renderPath(); renderBank(); save();
+}
+function renderGoals(){
+  document.getElementById('goalList').innerHTML = goalProgress().map(g=>`
+    <div class="goal ${g.done?'done':''}"><div class="check">✓</div><div><div class="gtext">${escapeHTML(g.text)}</div>${state.japanese?`<div class="jp">${escapeHTML(g.jp)}</div>`:''}</div></div>`).join('');
+}
+function renderBoard(){
+  const tiles=pathTiles(); const last=tiles[tiles.length-1];
+  document.getElementById('board').innerHTML = state.board.map(tile=>{
+    const selectedIndex = state.path.indexOf(tile.id);
+    const selected = selectedIndex>=0;
+    const nextOk = last && !selected && adjacent(last,tile);
+    const small = tile.word.length>9 ? ' small' : '';
+    return `<button class="tile ${selected?'selected':''} ${nextOk?'next-ok':''} ${state.swapMode?'swap-mode':''}" data-id="${tile.id}" data-type="${tile.type}">
+      <span class="tag">${TYPES[tile.type].label}</span>
+      <span class="word${small}">${escapeHTML(tile.word)}</span>
+      ${selected?`<span class="step">${selectedIndex+1}</span>`:''}
+    </button>`;
+  }).join('');
+  document.querySelectorAll('.tile').forEach(el=>el.addEventListener('click',()=>addTile(state.board.find(t=>t.id===el.dataset.id))));
+}
+function renderPath(){
+  const tiles = pathTiles();
+  const row=document.getElementById('pathRow');
+  if(!tiles.length){row.innerHTML='<span class="path-empty">Tap tiles to build a sentence path…</span>';} 
+  else row.innerHTML = tiles.map(t=>`<div class="chip" data-type="${t.type}"><span class="chip-tag">${TYPES[t.type].label}</span><span class="chip-word">${escapeHTML(t.word)}</span></div>`).join('');
+  renderChoices(tiles);
+  const d = sentenceData();
+  const p=document.getElementById('preview');
+  p.innerHTML = d.text ? escapeHTML(formatSentence(d.text)) : '<span class="hint">Your sentence appears here.</span>';
+  document.getElementById('warnings').textContent = d.analysis.valid ? '' : warningText(d.analysis.warning || '');
+  document.getElementById('liveScore').textContent=scoreCurrent();
+  document.getElementById('keepBtn').disabled=!d.analysis.valid || choiceQueue().length>0 || !state.checked;
+}
+function renderChoices(tiles){
+  const wrap=document.getElementById('choices');
+  const pending = choiceQueue();
+  if(!tiles.length){ wrap.innerHTML=''; return; }
+  if(!pending.length){
+    wrap.innerHTML = state.checked ? `<span class="fix-hint">${state.japanese?'確認OK。自然なら保存できます。':'Checked. If it sounds natural, keep it.'}</span>` : `<span class="fix-hint">${state.japanese?'「文をチェック」を押してから保存。':'Press Check sentence before keeping it.'}</span>`;
+    return;
+  }
+  const first = pending[0];
+  const labelMap = {
+    rewrite: state.japanese ? '自然な形を選ぶ' : 'Choose a natural sentence',
+    subject: state.japanese ? '主語を足す' : 'Add a subject',
+    verb: state.japanese ? '時制を変える' : 'Change the tense',
+    link: state.japanese ? 'つなぐ言葉を足す' : 'Add a link word',
+    joiner: state.japanese ? 'つなぎ言葉を直す' : 'Fix the connector'
+  };
+  const hintMap = {
+    rewrite: state.japanese ? 'この並びは自然な文に直せます。' : 'This path can become a natural sentence/question.',
+    subject: state.japanese ? 'Who がないので、主語を選びます。' : 'This can work, but it needs a subject.',
+    verb: state.japanese ? '動詞の形を選んでください。' : 'Choose a verb form.',
+    link: state.japanese ? '場所の前に at / in / to などが必要かもしれません。' : 'This place probably needs at / in / to before it.',
+    joiner: state.japanese ? 'because / but / so の後を自然にします。' : 'Make the words after because / but / so sound natural.'
+  };
+  wrap.innerHTML = `<div class="fix-row"><span class="fix-hint">${hintMap[first.kind]}</span><button class="choice action" id="openChoicesBtn">${labelMap[first.kind]}</button></div>`;
+  document.getElementById('openChoicesBtn').addEventListener('click',()=>openChoice(first));
+}
+function warningText(w){
+  if(!w) return '';
+  const en = {
+    'Choose a verb form first.':'Choose a verb form first.',
+    'Try at least 3 connected tiles.':'Try at least 3 connected tiles.',
+    'Try at least 2 connected tiles.':'Try at least 2 connected tiles.',
+    'A question needs an action word.':'A question needs an action word.',
+    'A sentence needs Who + Verb.':'A sentence needs Who + Verb.',
+    'Choose the missing grammar choices first.':'Choose the missing grammar choices first.',
+    'This needs a Verb tile.':'This needs a Verb tile.',
+    'This needs a subject. Press Check sentence to choose one.':'This needs a subject. Press Check sentence to choose one.',
+    'This needs a starter. Press Check sentence to choose one.':'This needs a starter. Press Check sentence to choose one.',
+    'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.':'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.',
+    'A joiner needs another idea after it.':'A joiner needs another idea after it.',
+    'This does not sound complete yet.':'This does not sound complete yet.'
+  };
+  const jp = {
+    'Choose a verb form first.':'先に動詞の形を選んでください。',
+    'Try at least 3 connected tiles.':'3つ以上のつながったタイルを使ってください。',
+    'Try at least 2 connected tiles.':'2つ以上のつながったタイルを使ってください。',
+    'A question needs an action word.':'質問には動詞が必要です。',
+    'A sentence needs Who + Verb.':'文には Who + Verb が必要です。',
+    'Choose the missing grammar choices first.':'先に文法の選択をしてください。',
+    'This needs a Verb tile.':'Verb タイルが必要です。',
+    'This needs a subject. Press Check sentence to choose one.':'主語が必要です。「文をチェック」で選べます。',
+    'This needs a starter. Press Check sentence to choose one.':'文の始まりが必要です。「文をチェック」で選べます。',
+    'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.':'if / because / but だけで始めると文が途中になります。先に考えを1つ作るか、後ろにもう1つ考えを足します。',
+    'A joiner needs another idea after it.':'つなぐ言葉の後に、もう1つ考えが必要です。',
+    'This does not sound complete yet.':'まだ文が完成していません。'
+  };
+  const base = state.japanese ? (jp[w] || w) : (en[w] || w);
+  return base + teacherLine();
+}
+function renderLanguage(){
+  document.getElementById('jpToggleBtn').textContent = state.japanese ? '日本語 ON' : '日本語 OFF';
+  document.getElementById('guideBtn').innerHTML = state.japanese ? 'Guide <span class="jp">ガイド</span>' : 'Guide';
+  document.getElementById('resetBtn').textContent = state.japanese ? 'リセット' : 'Reset';
+  document.getElementById('boardHint').textContent = state.japanese ? '自然な英文になるように、つながったタイルを探そう。' : 'Find a connected path that makes natural English.';
+  document.getElementById('rulesCard').innerHTML = state.japanese
+    ? '<b>ルール:</b> Boggleのように、となり合うタイルをタップします。交換は<b>2回だけ</b>。ミッションが全部緑になったら会話ファイナル。'
+    : '<b>Rule:</b> Tap connected tiles like Boggle. Your next tile must touch the last one. You get <b>2 swaps</b>, not unlimited rerolls. When all mission goals are green, do the conversation finale.';
+  document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒント' : 'Nudge hint';
+  document.getElementById('swapBtn').textContent = state.swapMode ? (state.japanese?'交換するタイルをタップ':'Tap tile to swap') : (state.japanese?'1枚交換':'Swap 1 tile');
+  document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
+  document.getElementById('clearBtn').textContent = state.japanese ? '消す' : 'Clear path';
+  document.getElementById('checkBtn').textContent = state.japanese ? '文をチェック' : 'Check sentence';
+  document.getElementById('keepBtn').textContent = state.japanese ? '文を保存' : 'Keep sentence';
+  document.getElementById('finaleBtn').textContent = state.japanese ? '会話へ →' : 'Finale →';
+}
+function openChoice(item){
+  if(!item) return;
+  activeChoice = item;
+  const overlay = document.getElementById('choiceOverlay');
+  const title = document.getElementById('choiceTitle');
+  const lead = document.getElementById('choiceLead');
+  const context = document.getElementById('choiceContext');
+  const opts = document.getElementById('choiceOptions');
+  const help = document.getElementById('choiceHelpJP');
+  const d = sentenceData();
+  if(item.kind==='rewrite'){
+    title.textContent = state.japanese ? '自然な形を選ぶ' : 'Choose a natural sentence';
+    lead.textContent = state.japanese ? 'タイルの意味を使って、自然な文・質問を選びます。' : 'Use the tiles, but choose the sentence/question that sounds natural.';
+    help.textContent = state.japanese ? 'そのまま並べるより、英語では do / did / can / should などが必要な時があります。' : '';
+  } else if(item.kind==='subject'){
+    title.textContent = state.japanese ? '主語を足す' : 'Add a subject';
+    lead.textContent = state.japanese ? 'Who がなくても大丈夫。自然な主語を選びます。' : 'This can be correct; choose who is doing the action.';
+    help.textContent = state.japanese ? '例：should meet at a cafe → We should meet at a cafe.' : '';
+  } else if(item.kind==='verb'){
+    title.textContent = state.japanese ? '時制を変える' : 'Change the tense';
+    lead.textContent = state.japanese ? 'この文に合う動詞の形を選びます。' : 'Choose the verb form that fits this sentence.';
+    help.textContent = state.japanese ? 'ヒント：「past」は過去、「future」は will / going to、「can / should」は動詞の前。' : '';
+  } else if(item.kind==='link'){
+    title.textContent = state.japanese ? 'つなぐ言葉を足す' : 'Add a link word';
+    lead.textContent = state.japanese ? '場所や相手の前に at / in / to / with などを入れます。' : 'Choose the small word that connects the verb to the place/person.';
+    help.textContent = state.japanese ? '例：meet a cafe → meet at a cafe' : '';
+  } else {
+    title.textContent = state.japanese ? 'つなぎ言葉を直す' : 'Fix the connector';
+    lead.textContent = state.japanese ? 'because / but / so の後ろが自然になる形を選びます。' : 'Choose the phrase that makes the words after the connector sound natural.';
+    help.textContent = state.japanese ? '例：because important → because it is important' : '';
+  }
+  context.textContent = item.kind==='rewrite' ? pathTiles().map(t=>t.word).join(' → ') : formatSentence(d.text || pathTiles().map(t=>t.word).join(' '));
+  opts.innerHTML = item.options.map(o=>`<button class="option-btn" data-option="${escapeHTML(optionValue(o))}">${escapeHTML(optionLabel(o))}</button>`).join('');
+  opts.querySelectorAll('.option-btn').forEach(btn=>btn.addEventListener('click',()=>selectChoice(btn.dataset.option)));
+  overlay.classList.add('open');
+}
+let activeChoice=null;
+function selectChoice(value){
+  if(!activeChoice) return;
+  if(activeChoice.kind==='rewrite') state.chosenRewrite=value.replace(/[.]$/,'');
+  else if(activeChoice.kind==='subject') state.chosenSubject=value;
+  else if(activeChoice.kind==='verb') state.chosenForms[activeChoice.key]=value;
+  else if(activeChoice.kind==='link') state.chosenLinks[activeChoice.key]=value;
+  else if(activeChoice.kind==='joiner') state.chosenJoiners[activeChoice.key]=value;
+  activeChoice=null;
+  render(); save();
+  const next = choiceQueue()[0];
+  if(next) setTimeout(()=>openChoice(next),80);
+  else {
+    document.getElementById('choiceOverlay').classList.remove('open');
+    state.checked=true;
+    render();
+    const d=sentenceData();
+    showToast(d.analysis.valid ? (state.japanese?'チェックOK！':'Checked!') : warningText(d.analysis.warning));
+  }
+}
+function checkSentence(){
+  state.checked=true;
+  const next = choiceQueue()[0];
+  if(next){ openChoice(next); render(); save(); return; }
+  const d = sentenceData();
+  showToast(d.analysis.valid ? (state.japanese?'いい感じ！自然なら保存しよう。':'Looks good. If it sounds natural, keep it.') : warningText(d.analysis.warning));
+  render(); save();
+}
+function renderBank(){
+  document.getElementById('bankCount').textContent=state.bank.length;
+  const list=document.getElementById('bankList');
+  if(!state.bank.length){list.innerHTML='<div class="empty-bank">Kept sentences become your conversation material. Try to finish all three mission goals.</div>';return;}
+  list.innerHTML=state.bank.slice().reverse().map(b=>`
+    <div class="kept">
+      <div class="kept-top"><div class="sent">${escapeHTML(b.text)}</div><div class="pts">+${b.pts}</div></div>
+      <div class="kept-meta">${(b.hits||[]).map(h=>`<span class="badge">${escapeHTML(h)}</span>`).join('')}<button class="vote-btn ${b.voted?'on':''}" data-vote="${b.id}">${b.voted?'★ voted':'peer vote +3'}</button></div>
+    </div>`).join('');
+  list.querySelectorAll('[data-vote]').forEach(btn=>btn.addEventListener('click',()=>voteSentence(btn.dataset.vote)));
+}
+function renderLegend(){
+  document.getElementById('legend').innerHTML=Object.entries(TYPES).map(([k,v])=>`<span style="background:${v.color}">${v.label} <span class="jp">${v.jp}</span></span>`).join('');
+  document.getElementById('guideRows').innerHTML=GUIDE.map(g=>`<p><b style="color:${TYPES[g[0]].color}">${g[1]}</b> <span class="jp">${g[2]}</span><br><small>${g[3]}</small></p>`).join('');
+}
+function nudgeHint(){
+  const tiles = pathTiles();
+  const d = sentenceData();
+  const pending = choiceQueue();
+  if(!tiles.length){
+    showToast(state.japanese ? 'まず Who か Question から始めると作りやすいです。' : 'Try starting with Who or Question, then find a Verb touching it.');
+    return;
+  }
+  if(pending.length){
+    const k = pending[0].kind;
+    const msg = {
+      rewrite: state.japanese ? '自然な文や質問に直せます。「文をチェック」を押そう。' : 'This can become a natural sentence/question. Press Check sentence.',
+      subject: state.japanese ? '主語が足せます。「文をチェック」を押して選ぼう。' : 'This can work. Press Check sentence to add a subject.',
+      verb: state.japanese ? '時制の選択が必要です。「文をチェック」。' : 'This needs a tense choice. Press Check sentence.',
+      link: state.japanese ? '場所の前に at / in / to が必要かも。「文をチェック」。' : 'This probably needs at / in / to before the place. Press Check sentence.',
+      joiner: state.japanese ? 'because などの後ろを自然にできます。「文をチェック」。' : 'The connector needs a small fix. Press Check sentence.'
+    }[k];
+    showToast(msg);
+    return;
+  }
+  if(d.analysis.valid){
+    showToast(state.japanese ? 'OKです。自然に聞こえたら保存！' : 'This is checkable. If it sounds natural, keep it!');
+    return;
+  }
+  const types = new Set(tiles.map(t=>t.type));
+  const last = tiles[tiles.length-1];
+  let wanted = [];
+  if(!types.has('verb')) wanted = ['verb'];
+  else if(!types.has('who') && !types.has('question')) wanted = ['who'];
+  else if(!types.has('thing') && !types.has('describe') && !types.has('detail')) wanted = ['thing','detail','describe'];
+  else wanted = allowedAfter(last.type || 'verb');
+  const neighbors = state.board.filter(t=>!state.path.includes(t.id) && adjacent(last,t) && wanted.includes(t.type));
+  if(neighbors.length){
+    neighbors.slice(0,3).forEach(t=>flashTile(t.id));
+    showToast(state.japanese ? `${TYPES[neighbors[0].type].label} の近くのタイルを見て。` : `Try the nearby ${TYPES[neighbors[0].type].label} tile.`);
+  } else {
+    showToast(state.japanese ? '近くにいいタイルがなければ、1枚交換を使ってOK。' : 'No good nearby tile? Use one swap to rescue the path.');
+  }
+}
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(window.toastTimer); window.toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
+}
+document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast('New mission!');render();});
+document.getElementById('nudgeBtn').addEventListener('click',nudgeHint);
+document.getElementById('swapBtn').addEventListener('click',()=>{ if(state.swaps<=0){showToast(state.japanese?'交換はもうありません。':'No swaps left.');return;} state.swapMode=!state.swapMode; render(); });
+document.getElementById('clearBtn').addEventListener('click',()=>{state.path=[];state.chosenForms={};state.chosenJoiners={};state.chosenLinks={};state.chosenSubject=null;state.checked=false;render();});
+document.getElementById('checkBtn').addEventListener('click',checkSentence);
+document.getElementById('jpToggleBtn').addEventListener('click',()=>{state.japanese=!state.japanese;render();});
+document.getElementById('keepBtn').addEventListener('click',keepSentence);
+document.getElementById('finaleBtn').addEventListener('click',openFinale);
+document.getElementById('guideBtn').addEventListener('click',()=>document.getElementById('guideOverlay').classList.add('open'));
+document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,checked:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
+document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>document.getElementById(btn.dataset.close).classList.remove('open')));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+renderLegend();
+if(!load()) newBoard(false);
+render();
+</script>
+</body>
+</html>
