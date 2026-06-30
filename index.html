@@ -98,6 +98,7 @@
   .btn:active{transform:translateY(1px);filter:brightness(.98);}
   .btn.primary{background:var(--dark);color:white;border-color:var(--dark);}
   .btn.green{background:var(--who);color:white;border-color:var(--who);}
+  .btn.amber{background:#9a7340;color:white;border-color:#9a7340;}
   .btn.red{background:var(--joiner);color:white;border-color:var(--joiner);}
   .btn:disabled{opacity:.43;filter:grayscale(.1);cursor:not-allowed;}
 
@@ -327,6 +328,7 @@
       <div class="subtitle jp">ミッション → 文 → 会話</div>
     </div>
     <div class="top-actions">
+      <button class="btn" id="simpleModeBtn">Simple OFF</button>
       <button class="btn" id="jpToggleBtn">日本語 OFF</button>
       <button class="btn" id="guideBtn">Guide <span class="jp">ガイド</span></button>
       <button class="btn" id="resetBtn">Reset</button>
@@ -440,6 +442,11 @@
         <div id="guideRows"></div>
       </div>
       <div class="card">
+        <h3>Simple mode</h3>
+        <p>Tap <b>Simple OFF</b> in the header to switch. Simple mode uses only <b>Who, Verb, Thing,</b> and <b>Do you</b> tiles, with two easy goals. Good for first-time groups or lower levels.</p>
+        <p class="jp">ヘッダーのボタンで切り替え。初めてのクラス向け。</p>
+      </div>
+      <div class="card">
         <h3>Teacher note</h3>
         <p>This is intentionally “Boggle-ish,” not pure Boggle. Tap only touching tiles, and follow the colour pattern: Who → Verb → Thing. When three tiles could make a sentence, pick the natural option from the modal.</p>
         <p class="jp">単語の意味ではなく、「使い方」を色で見る。</p>
@@ -466,7 +473,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const STORAGE_KEY = 'sentenceQuestBoggle.v6';
+const STORAGE_KEY = 'sentenceQuestBoggle.v7';
+const SIMPLE_TYPES = ['who','verb','thing','question'];
+const SIMPLE_GOALS = [
+  {id:'sentence', text:'Make one Who + Verb + Thing sentence.', jp:'Who + Verb + Thing の文を1つ'},
+  {id:'question', text:'Make one Do you…? question.', jp:'Do you の質問を1つ'}
+];
 const TYPES = {
   who:{label:'Who', jp:'だれ', color:'var(--who)'},
   question:{label:'Question', jp:'質問', color:'var(--question)'},
@@ -585,18 +597,36 @@ const LAYOUT = [
   'detail','who','verb','thing','question',
   'who','joiner','time','verb','describe'
 ];
+// Simple mode: only 4 tile types, arranged for easy Who → Verb → Thing paths.
+const SIMPLE_LAYOUT = [
+  'who','verb','thing','who','verb',
+  'verb','thing','who','verb','thing',
+  'who','verb','thing','question','verb',
+  'thing','who','verb','thing','who',
+  'question','verb','thing','who','verb'
+];
 const STARTER_TYPES = ['who','question','opinion','time'];
+const SIMPLE_STARTERS = ['who','question'];
 let state = {
   missionIndex:0, board:[], path:[], bank:[], total:0, swaps:2, swapMode:false, votedId:null,
   chosenForms:{}, chosenJoiners:{}, chosenLinks:{}, chosenSubject:null, chosenRewrite:null,
-  japanese:false, checked:false, pathPrompted:false, createdAt:Date.now()
+  japanese:false, simpleMode:false, checked:false, pathPrompted:false, createdAt:Date.now()
 };
+function isSimple(){ return !!state.simpleMode; }
+function boardLayout(){ return isSimple() ? SIMPLE_LAYOUT : LAYOUT; }
 function rand(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function shuffle(arr){return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
 function escapeHTML(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function capitalizeSentence(s){if(!s)return '';return s.charAt(0).toUpperCase()+s.slice(1)+(s.endsWith('?')?'':'.');}
 function currentMission(){return THEMES[state.missionIndex % THEMES.length];}
 function typePool(type, mission){
+  if(isSimple()){
+    if(type==='who') return ['I','we','my friends'];
+    if(type==='question') return ['Do you'];
+    if(type==='verb') return mission.verbs.filter(v=>!/\s/.test(v)).slice(0,6);
+    if(type==='thing') return mission.things.slice(0,8);
+    return [];
+  }
   if(type==='verb') return mission.verbs;
   if(type==='thing') return mission.things;
   if(type==='describe') return mission.describe || BASE.describe;
@@ -612,6 +642,9 @@ function makeTile(type, idx, mission, oldWord=null){
   return {id:'t'+idx+'_'+Math.random().toString(36).slice(2,7), type, word:oldWord==null?rand(pool):chooseDifferent(pool, oldWord), r:Math.floor(idx/5), c:idx%5};
 }
 function allowedAfter(type){
+  if(isSimple()){
+    return {who:['verb'], question:['verb'], verb:['thing'], thing:[]}[type] || [];
+  }
   return {
     question:['who','verb','thing','time'],
     who:['time','opinion','verb','thing'],
@@ -624,7 +657,7 @@ function allowedAfter(type){
     joiner:['who','opinion','verb','thing','describe','detail']
   }[type] || [];
 }
-function allowedFirst(type){ return STARTER_TYPES.includes(type); }
+function allowedFirst(type){ return (isSimple() ? SIMPLE_STARTERS : STARTER_TYPES).includes(type); }
 function grammarHintFor(lastType){
   const next = allowedAfter(lastType).map(t=>TYPES[t].label);
   if(!next.length) return '';
@@ -656,22 +689,25 @@ function smartSwapType(tile){
     }
   }
   candidates = candidates.filter(t=>typePool(t,currentMission()).length);
+  if(isSimple()) candidates = candidates.filter(t=>SIMPLE_TYPES.includes(t));
   if(!candidates.length) return tile.type;
   // Prefer useful missing pieces, but do not force it every time.
   const currentTypes = new Set(tiles.map(t=>t.type));
-  const missingPriority = ['verb','thing','who','joiner','describe','detail','time','opinion','question'];
+  const missingPriority = isSimple()
+    ? ['verb','thing','who','question']
+    : ['verb','thing','who','joiner','describe','detail','time','opinion','question'];
   const useful = missingPriority.find(t=>candidates.includes(t) && !currentTypes.has(t));
   return useful || rand(candidates);
 }
 function newBoard(keepMission=false){
   if(!keepMission) state.missionIndex = Math.floor(Math.random()*THEMES.length);
   const mission = currentMission();
-  state.board = LAYOUT.map((type,idx)=>makeTile(type,idx,mission));
-  // Make the centre area extra mission-friendly.
-  state.board[12] = makeTile('time',12,mission);
+  const layout = boardLayout();
+  state.board = layout.map((type,idx)=>makeTile(type,idx,mission));
+  state.board[12] = makeTile(isSimple()?'who':'time',12,mission);
   state.board[13] = makeTile('verb',13,mission);
   state.board[14] = makeTile('thing',14,mission);
-  state.path=[]; state.swaps=2; state.swapMode=false; clearGrammarChoices(); state.checked=false; state.pathPrompted=false;
+  state.path=[]; state.swaps=isSimple()?1:2; state.swapMode=false; clearGrammarChoices(); state.checked=false; state.pathPrompted=false;
 }
 function clearGrammarChoices(){
   state.chosenForms={};
@@ -690,7 +726,7 @@ function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}cat
 function load(){
   try{
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, pathPrompted:false, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
+    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, pathPrompted:false, simpleMode:!!saved.simpleMode, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
   }catch(e){}
   return false;
 }
@@ -713,7 +749,9 @@ function addTile(tile){
   if(!selected.length){
     if(!allowedFirst(tile.type)){
       flashTile(tile.id);
-      showToast(state.japanese ? 'Who / Question / Opinion / Time から始めよう。' : 'Start with Who, Question, Opinion, or Time.');
+      showToast(state.japanese
+        ? (isSimple() ? 'Who か Do you から始めよう。' : 'Who / Question / Opinion / Time から始めよう。')
+        : (isSimple() ? 'Start with Who or Do you.' : 'Start with Who, Question, Opinion, or Time.'));
       return;
     }
   } else {
@@ -895,6 +933,14 @@ function starterOptions(tiles){
   const timeWord = time ? time.word : null;
   const verb = firstOfType(tiles,'verb');
   if(!verb || startsWithJoiner(tiles)) return [];
+  if(isSimple()){
+    const starters = tiles.some(t=>t.type==='question') ? ['Do you'] : ['I','we','my friends'];
+    const seen = new Set();
+    return starters.map(st=>{
+      const text = formatSentence(composeWithStarter(tiles,st));
+      return text ? safeOption(text,text) : null;
+    }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,3);
+  }
   const baseSubjects = subjectOptions(tiles);
   let starters = [...baseSubjects];
   if(!timeWord || timeWord==='now' || timeWord==='want to') starters.push('Do you');
@@ -1076,6 +1122,8 @@ function choiceQueue(){
     return q;
   }
 
+  if(isSimple()) return q;
+
   const subjectTile = tiles.find(t=>t.type==='who');
   const questionTile = tiles.find(t=>t.type==='question');
   const subject = state.chosenSubject || (subjectTile && subjectTile.word) || (questionTile && questionTile.word==='Do you' ? 'you' : 'I');
@@ -1192,6 +1240,15 @@ function scoreCurrent(){
   return pts;
 }
 function goalProgress(){
+  if(isSimple()){
+    const done = new Set();
+    state.bank.forEach(b=>{
+      const types = new Set((b.tiles||[]).map(t=>t.type));
+      if(types.has('who') && types.has('verb') && types.has('thing')) done.add('sentence');
+      if(types.has('question') && types.has('verb')) done.add('question');
+    });
+    return SIMPLE_GOALS.map(g=>({...g,done:done.has(g.id)}));
+  }
   const mission = currentMission();
   const done = new Set();
   state.bank.forEach(b=>(b.hits||[]).forEach(h=>done.add(h)));
@@ -1310,9 +1367,17 @@ function openFinale(){
 }
 function render(){
   const mission = currentMission();
-  document.getElementById('missionTopic').textContent=mission.topic;
-  document.getElementById('missionTitle').textContent=mission.title;
-  document.getElementById('missionText').textContent=mission.text;
+  if(isSimple()){
+    document.getElementById('missionTopic').textContent = state.japanese ? 'かんたんモード' : 'Simple mode';
+    document.getElementById('missionTitle').textContent = mission.topic;
+    document.getElementById('missionText').textContent = state.japanese
+      ? 'Who → Verb → Thing。質問は Do you → Verb → Thing。'
+      : 'Easy pattern: Who → Verb → Thing. For a question: Do you → Verb → Thing.';
+  } else {
+    document.getElementById('missionTopic').textContent = mission.topic;
+    document.getElementById('missionTitle').textContent = mission.title;
+    document.getElementById('missionText').textContent = mission.text;
+  }
   document.getElementById('totalScore').textContent=state.total;
   document.getElementById('swapCount').textContent=state.swaps;
   document.getElementById('swapBtn').classList.toggle('red',state.swapMode);
@@ -1412,13 +1477,24 @@ function warningText(w){
   return base + teacherLine();
 }
 function renderLanguage(){
+  const simpleOn = isSimple();
+  document.getElementById('simpleModeBtn').textContent = simpleOn
+    ? (state.japanese ? 'かんたん ON' : 'Simple ON')
+    : (state.japanese ? 'かんたん OFF' : 'Simple OFF');
+  document.getElementById('simpleModeBtn').classList.toggle('amber', simpleOn);
   document.getElementById('jpToggleBtn').textContent = state.japanese ? '日本語 ON' : '日本語 OFF';
   document.getElementById('guideBtn').innerHTML = state.japanese ? 'Guide <span class="jp">ガイド</span>' : 'Guide';
   document.getElementById('resetBtn').textContent = state.japanese ? 'リセット' : 'Reset';
-  document.getElementById('boardHint').textContent = state.japanese ? 'Who → Verb → Thing の順が作りやすい。隣のタイルだけ選べます。' : 'Easy pattern: Who → Verb → Thing. Only tap tiles that touch your path.';
-  document.getElementById('rulesCard').innerHTML = state.japanese
-    ? '<b>ルール:</b> Who / Question から始め、隣のタイルだけ選ぶ。3つつながったら自然な文を選ぶモーダルが出ます。交換は<b>2回だけ</b>。'
-    : '<b>Rule:</b> Start with Who or Question. Only tap touching tiles. At 3 connected tiles, pick a natural sentence from the modal. You get <b>2 swaps</b>.';
+  document.getElementById('boardHint').textContent = simpleOn
+    ? (state.japanese ? 'Who → Verb → Thing。隣だけタップ。' : 'Who → Verb → Thing. Tap touching tiles only.')
+    : (state.japanese ? 'Who → Verb → Thing の順が作りやすい。隣のタイルだけ選べます。' : 'Easy pattern: Who → Verb → Thing. Only tap tiles that touch your path.');
+  document.getElementById('rulesCard').innerHTML = simpleOn
+    ? (state.japanese
+      ? '<b>かんたんモード:</b> タイルは4種類だけ。Who / Verb / Thing / Do you。交換は<b>1回</b>。'
+      : '<b>Simple mode:</b> Only 4 tile types — Who, Verb, Thing, Do you. One swap. Finish both goals for the finale.')
+    : (state.japanese
+      ? '<b>ルール:</b> Who / Question から始め、隣のタイルだけ選ぶ。3つつながったら自然な文を選ぶモーダルが出ます。交換は<b>2回だけ</b>。'
+      : '<b>Rule:</b> Start with Who or Question. Only tap touching tiles. At 3 connected tiles, pick a natural sentence from the modal. You get <b>2 swaps</b>.');
   document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒント' : 'Nudge hint';
   document.getElementById('swapBtn').textContent = state.swapMode ? (state.japanese?'交換するタイルをタップ':'Tap tile to swap') : (state.japanese?'1枚交換':'Swap 1 tile');
   document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
@@ -1504,7 +1580,11 @@ function renderBank(){
   list.querySelectorAll('[data-vote]').forEach(btn=>btn.addEventListener('click',()=>voteSentence(btn.dataset.vote)));
 }
 function renderLegend(){
-  document.getElementById('legend').innerHTML=Object.entries(TYPES).map(([k,v])=>`<span style="background:${v.color}">${v.label} <span class="jp">${v.jp}</span></span>`).join('');
+  const types = isSimple() ? SIMPLE_TYPES : Object.keys(TYPES);
+  document.getElementById('legend').innerHTML=types.map(k=>{
+    const v=TYPES[k];
+    return `<span style="background:${v.color}">${v.label} <span class="jp">${v.jp}</span></span>`;
+  }).join('');
   document.getElementById('guideRows').innerHTML=GUIDE.map(g=>`<p><b style="color:${TYPES[g[0]].color}">${g[1]}</b> <span class="jp">${g[2]}</span><br><small>${g[3]}</small></p>`).join('');
 }
 function nudgeHint(){
@@ -1512,7 +1592,9 @@ function nudgeHint(){
   const d = sentenceData();
   const pending = choiceQueue();
   if(!tiles.length){
-    showToast(state.japanese ? 'Who か Question から始めよう。' : 'Start with Who or Question, then find Verb → Thing.');
+    showToast(state.japanese
+      ? (isSimple() ? 'Who か Do you から始めよう。' : 'Who か Question から始めよう。')
+      : (isSimple() ? 'Start with Who or Do you.' : 'Start with Who or Question, then find Verb → Thing.'));
     return;
   }
   if(pending.length){
@@ -1550,6 +1632,17 @@ function showToast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(window.toastTimer); window.toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
 }
+function toggleSimpleMode(){
+  state.simpleMode = !state.simpleMode;
+  resetPathState();
+  newBoard(true);
+  renderLegend();
+  showToast(state.simpleMode
+    ? (state.japanese ? 'かんたんモード ON' : 'Simple mode on — Who, Verb, Thing, Do you only.')
+    : (state.japanese ? 'ふつうモードに戻しました' : 'Full mode — all tile types are back.'));
+  render();
+}
+document.getElementById('simpleModeBtn').addEventListener('click',toggleSimpleMode);
 document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast('New mission!');render();});
 document.getElementById('nudgeBtn').addEventListener('click',nudgeHint);
 document.getElementById('swapBtn').addEventListener('click',()=>{ if(state.swaps<=0){showToast(state.japanese?'交換はもうありません。':'No swaps left.');return;} state.swapMode=!state.swapMode; render(); });
@@ -1559,7 +1652,7 @@ document.getElementById('jpToggleBtn').addEventListener('click',()=>{state.japan
 document.getElementById('keepBtn').addEventListener('click',keepSentence);
 document.getElementById('finaleBtn').addEventListener('click',openFinale);
 document.getElementById('guideBtn').addEventListener('click',()=>document.getElementById('guideOverlay').classList.add('open'));
-document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,checked:false,pathPrompted:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
+document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,simpleMode:false,checked:false,pathPrompted:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
 document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>document.getElementById(btn.dataset.close).classList.remove('open')));
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 renderLegend();
