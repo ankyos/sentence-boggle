@@ -172,6 +172,8 @@
   .tile:active{transform:scale(.98);}
   .tile.selected{transform:translateY(-2px);box-shadow:var(--shadow);outline:4px solid rgba(47,42,36,.12);}
   .tile.next-ok{outline:4px solid rgba(79,122,111,.16);}
+  .tile.hint-glow{outline:4px solid rgba(91,111,174,.55);animation:hintpulse 1s ease infinite;z-index:2;}
+  @keyframes hintpulse{0%,100%{box-shadow:0 0 0 2px rgba(91,111,174,.18),var(--shadow);}50%{box-shadow:0 0 0 8px rgba(91,111,174,.30),var(--shadow);}}
   .tile.bad{animation:shake .28s ease;}
   .tile.swap-mode{outline:4px solid rgba(194,104,63,.20);}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
@@ -354,7 +356,7 @@
         </div>
         <div class="board-actions">
           <div class="swap-note">Swaps <strong id="swapCount">2</strong></div>
-          <button class="btn" id="nudgeBtn">Nudge hint</button>
+          <button class="btn" id="nudgeBtn">Give me a hint</button>
           <button class="btn" id="swapBtn">Swap 1 tile</button>
           <button class="btn primary" id="newMissionBtn">New mission</button>
         </div>
@@ -771,37 +773,59 @@ function autoLinkOptionsFor(verbWord, nounWord){
 // Build ONE natural clause from a small set of tiles.
 // subject: a Who word ("I", "we", "my friends"...) used for statements.
 // mode: 'statement' | 'question'
-function simpleClause(tiles, subject, tense, mode){
-  const verbTile = tiles.find(t=>t.type==='verb');
-  const things = tiles.filter(t=>t.type==='thing');
+// Build ONE natural clause from a small set of tiles.
+// opts = {tense:'present'|'past'|'future'|'wantto', modal:null|'can'|'should', mode:'statement'|'question'}
+// Supports multiple subjects (a Who after the verb becomes an object, e.g. "help students")
+// and serial verbs (e.g. "can go study" / "go to study").
+function simpleClause(tiles, subject, opts){
+  opts = opts || {};
+  const tense = opts.tense || 'present';
+  const modal = opts.modal || null;
+  const isQuestion = opts.mode === 'question';
+  const verbs = tiles.filter(t=>t.type==='verb');
+  const verbTile = verbs[0];
+  const secondVerb = verbs[1];
+  const firstVerbIdx = verbTile ? tiles.indexOf(verbTile) : -1;
+  // Objects = Thing tiles, plus Who tiles that sit AFTER the verb (object position).
+  const objects = tiles.filter((t,i)=> t.type==='thing' || (t.type==='who' && firstVerbIdx>=0 && i>firstVerbIdx));
   const describes = tiles.filter(t=>t.type==='describe');
   const details = tiles.filter(t=>t.type==='detail');
-  const isQuestion = mode==='question';
 
   if(verbTile){
+    const base = verbTile.word;
+    const govVerb = (secondVerb || verbTile).word; // verb that governs the object
     const parts = [];
+    // Verb group (with auxiliary / tense / question word support).
     if(isQuestion){
-      const aux = tense==='past' ? 'Did' : tense==='future' ? 'Will' : 'Do';
-      parts.push(aux, 'you', verbTile.word);
+      if(modal==='can') parts.push('Can you', base);
+      else if(modal==='should') parts.push('Should we', base);
+      else if(tense==='wantto') parts.push('Do you want to', base);
+      else parts.push(tense==='past'?'Did':tense==='future'?'Will':'Do', 'you', base);
     } else {
-      parts.push(subject, conjugate(verbTile.word, tense, subject));
+      parts.push(subject);
+      if(modal) parts.push(modal, base);
+      else parts.push(conjugate(base, tense, subject));
     }
-    things.forEach((thing,idx)=>{
-      if(idx>0) parts.push('and');
-      else {
-        const link = autoLinkOptionsFor(verbTile.word, thing.word)[0];
-        if(link) parts.push(link);
-      }
-      parts.push(thing.word);
+    // Serial second verb: "can go study" (after modal) or "go to study".
+    if(secondVerb){
+      if(base==='go' || base==='come') parts.push(modal ? secondVerb.word : 'to', modal ? '' : secondVerb.word);
+      else parts.push('and', secondVerb.word);
+    }
+    // Objects (things keep their link word; a Who object attaches directly).
+    objects.forEach((o,idx)=>{
+      if(idx>0){ parts.push('and', o.word); return; }
+      if(o.type==='thing'){ const link = autoLinkOptionsFor(govVerb, o.word)[0]; if(link) parts.push(link); }
+      parts.push(o.word);
     });
     details.forEach(d=>parts.push(d.word));
-    const s = articleFix(parts.join(' ').replace(/\s+/g,' ').trim());
+    const s = articleFix(parts.filter(Boolean).join(' ').replace(/\s+/g,' ').trim());
     return isQuestion ? s+'?' : s;
   }
 
   // No verb: a describing ("be") sentence.
-  if(things.length && describes.length){
-    const th = things[0].word;
+  const firstThing = tiles.find(t=>t.type==='thing');
+  if(firstThing && describes.length){
+    const th = firstThing.word;
     const be = isPlural(th) ? 'are' : 'is';
     if(isQuestion) return `Do you think ${th} ${be} ${describes[0].word}?`;
     return `${th} ${be} ${describes[0].word}`;
@@ -828,18 +852,18 @@ function buildSentenceOptions(){
     const jw = tiles[ji].word;
     const right = tiles.slice(ji+1);
     const leftSubj = (left.find(t=>t.type==='who')||{}).word || 'I';
-    const leftStr = simpleClause(left, leftSubj, 'present', 'statement');
+    const leftStr = simpleClause(left, leftSubj, {tense:'present', mode:'statement'});
     const rWho = (right.find(t=>t.type==='who')||{}).word;
     const rHasVerb = right.some(t=>t.type==='verb');
     const rSubj = rWho || (rHasVerb ? leftSubj : 'it');
-    let rightStr = simpleClause(right, rSubj, 'present', 'statement');
+    let rightStr = simpleClause(right, rSubj, {tense:'present', mode:'statement'});
     if(!rightStr){
       const rThing = right.find(t=>t.type==='thing');
       if(rThing) rightStr = `I like ${rThing.word}`;
     }
     if(leftStr && rightStr) add(`${leftStr} ${jw} ${rightStr}`);
     if(leftStr) add(leftStr);
-    return opts.slice(0,5);
+    return opts.slice(0,6);
   }
 
   const whoTile = tiles.find(t=>t.type==='who');
@@ -848,24 +872,29 @@ function buildSentenceOptions(){
   const describes = tiles.filter(t=>t.type==='describe');
 
   if(verbTile){
-    const subj = whoTile ? whoTile.word : 'I';
+    const firstVerbIdx = tiles.findIndex(t=>t.type==='verb');
+    const subjectWho = tiles.find((t,i)=>t.type==='who' && i<firstVerbIdx);
+    const subj = subjectWho ? subjectWho.word : 'I';
     const stative = ['like','love','want','need','hate','know'].includes(verbTile.word);
-    add(simpleClause(tiles, subj, 'present', 'statement'));
-    if(!whoTile) add(simpleClause(tiles, 'we', 'present', 'statement'));
-    add(simpleClause(tiles, subj, 'present', 'question'));
-    add(simpleClause(tiles, subj, 'past', 'statement'));
-    if(!stative) add(simpleClause(tiles, subj, 'future', 'statement'));
+    const mid = currentMission().id;
+    add(simpleClause(tiles, subj, {tense:'present', mode:'statement'}));
+    if(!subjectWho) add(simpleClause(tiles, 'we', {tense:'present', mode:'statement'}));
+    if(!stative) add(simpleClause(tiles, subj, {modal:'can', mode:'statement'}));  // auxiliary: "We can go study."
+    add(simpleClause(tiles, subj, {tense:'present', mode:'question'}));
+    add(simpleClause(tiles, subj, {tense:'past', mode:'statement'}));
+    if(!stative) add(simpleClause(tiles, subj, {tense:'future', mode:'statement'}));
+    if((mid==='future' || mid==='weekend') && !stative) add(simpleClause(tiles, subj, {tense:'wantto', mode:'statement'}));
   }
   // Describing sentences come from Thing + Describe (no awkward adjective insertion).
   if(things.length && describes.length){
     const pair = [things[0], describes[0]];
-    add(simpleClause(pair, '', 'present', 'statement'));
-    add('I think ' + simpleClause(pair, '', 'present', 'statement'));
-    add(simpleClause(pair, '', 'present', 'question'));
+    add(simpleClause(pair, '', {tense:'present', mode:'statement'}));
+    add('I think ' + simpleClause(pair, '', {tense:'present', mode:'statement'}));
+    add(simpleClause(pair, '', {tense:'present', mode:'question'}));
   } else if(whoTile && describes.length && !verbTile && !things.length){
-    add(simpleClause([whoTile, describes[0]], whoTile.word, 'present', 'statement'));
+    add(simpleClause([whoTile, describes[0]], whoTile.word, {tense:'present', mode:'statement'}));
   }
-  return opts.slice(0,5);
+  return opts.slice(0,6);
 }
 const PLACE_WORDS = ['school','a cafe','the mall','a park','Ohori Park','Tenjin','Fukuoka','a university','the subway','a festival','home','in Japan','near school','a trip'];
 const PERSON_WORDS = ['my friends','students','our class','my family','friend'];
@@ -972,20 +1001,56 @@ function followUp(item){
   if(desc) return {q:`Why is it ${desc}?`, a:'Because it is interesting. What about you?'};
   return {q:'Interesting! Tell me more.', a:'Sure! What about you?'};
 }
-// Weave the kept sentences into a back-and-forth A/B dialogue.
+// Reorder kept sentences so the conversation flows: statements are grouped by their
+// main Thing (related ideas together, simplest first) and questions are kept aside to
+// use as natural follow-ups. Pure JS, no dependencies.
+function orderForConversation(bank){
+  const thingOf = it => ((it.tiles||[]).find(t=>t.type==='thing')||{}).word || '~';
+  const isQ = it => /\?\s*$/.test(it.text||'');
+  const statements = bank.filter(it=>!isQ(it));
+  const questions = bank.filter(isQ);
+  const groups = {};
+  shuffle(statements).forEach(it=>{ const k=thingOf(it); (groups[k]=groups[k]||[]).push(it); });
+  const ordered = [];
+  Object.keys(groups).forEach(k=>{
+    groups[k].sort((a,b)=>(a.tiles||[]).length-(b.tiles||[]).length);
+    ordered.push(...groups[k]);
+  });
+  return {statements:ordered, questions};
+}
+// Weave the (reordered) kept sentences into a back-and-forth A/B dialogue.
 function buildConversation(){
-  const items = shuffle(state.bank.slice()).slice(0,5);
+  const {statements, questions} = orderForConversation(state.bank.slice());
   const topic = currentMission().topic.toLowerCase();
-  const lines=[{who:'A', text:`Let's talk about ${topic}.`},{who:'B', text:'Sure! You go first.'}];
-  items.forEach((it,i)=>{
-    const speaker = i%2===0 ? 'A' : 'B';
-    const other = speaker==='A' ? 'B' : 'A';
+  const openers = [`Let's talk about ${topic}.`, `Can I ask you about ${topic}?`, `Let's practice some ${topic} talk.`];
+  const closers = ['Me too! Thanks, that was a good talk.', 'Same here. Good talking with you!', "Nice! Let's talk again later."];
+  const lines=[{who:'A', text:rand(openers)},{who:'B', text:'Sure! You go first.'}];
+  const qPool = questions.slice();
+  const seq = (statements.length ? statements : questions).slice(0,5);
+  const thingOf = it => ((it.tiles||[]).find(t=>t.type==='thing')||{}).word;
+  let turn=0;
+  seq.forEach(it=>{
+    const speaker = turn%2===0 ? 'A' : 'B';
+    const other = turn%2===0 ? 'B' : 'A';
     const fu = followUp(it);
     lines.push({who:speaker, text: it.text});
-    lines.push({who:other, text: fu.q});
+    // Prefer one of the students' OWN kept questions (same Thing) as the follow-up.
+    let q=null; const th=thingOf(it);
+    if(statements.length && th){ const qi=qPool.findIndex(x=>(x.tiles||[]).some(t=>t.type==='thing'&&t.word===th)); if(qi>=0) q=qPool.splice(qi,1)[0]; }
+    lines.push({who:other, text: q ? q.text : fu.q});
     lines.push({who:speaker, text: fu.a});
+    turn++;
   });
-  lines.push({who: items.length%2===0?'A':'B', text:'Me too! Thanks, that was a good talk.'});
+  // Don't waste any leftover kept questions.
+  qPool.slice(0,2).forEach(q=>{
+    const speaker = turn%2===0 ? 'A' : 'B';
+    const other = turn%2===0 ? 'B' : 'A';
+    lines.push({who:speaker, text:q.text});
+    lines.push({who:other, text:'Good question! I think so. What about you?'});
+    turn++;
+  });
+  const lastWho = lines[lines.length-1].who;
+  lines.push({who: lastWho==='A' ? 'B' : 'A', text:rand(closers)});
   return lines;
 }
 function renderFinale(){
@@ -1099,7 +1164,7 @@ function renderLanguage(){
   document.getElementById('rulesCard').innerHTML = state.japanese
     ? '<b>ルール:</b> Boggleのように、となり合うタイルをタップ。次のタイルは前のタイルにふれていること。<b>「文を作る」</b>を押すと、その並びから作れる自然な文を選べます。交換は<b>2回だけ</b>。ミッションが全部緑になったら会話ファイナル。'
     : '<b>Rule:</b> Tap connected tiles like Boggle — each new tile must touch the last one. Press <b>Build sentence</b> and pick the natural version your tiles can make. You get <b>2 swaps</b>, not unlimited rerolls. When all mission goals are green, do the conversation finale.';
-  document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒント' : 'Nudge hint';
+  document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒントをちょうだい' : 'Give me a hint';
   document.getElementById('swapBtn').textContent = state.swapMode ? (state.japanese?'交換するタイルをタップ':'Tap tile to swap') : (state.japanese?'1枚交換':'Swap 1 tile');
   document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
   document.getElementById('clearBtn').textContent = state.japanese ? '消す' : 'Clear path';
@@ -1146,30 +1211,35 @@ function renderLegend(){
   document.getElementById('legend').innerHTML=Object.entries(TYPES).map(([k,v])=>`<span style="background:${v.color}">${v.label} <span class="jp">${v.jp}</span></span>`).join('');
   document.getElementById('guideRows').innerHTML=GUIDE.map(g=>`<p><b style="color:${TYPES[g[0]].color}">${g[1]}</b> <span class="jp">${g[2]}</span><br><small>${g[3]}</small></p>`).join('');
 }
+function clearHintGlow(){ document.querySelectorAll('.tile.hint-glow').forEach(el=>el.classList.remove('hint-glow')); }
+function highlightHintTiles(ids){
+  clearHintGlow();
+  ids.forEach(id=>{ const el=document.querySelector(`[data-id="${id}"]`); if(el) el.classList.add('hint-glow'); });
+  clearTimeout(window.hintTimer); window.hintTimer=setTimeout(clearHintGlow, 3000);
+}
 function nudgeHint(){
   const tiles = pathTiles();
+  // No path yet: glow the good starting tiles (Who or Verb).
   if(!tiles.length){
-    showToast(state.japanese ? 'まず Who か Verb から始めて、となりの Thing につなげよう。' : 'Start with a Who or Verb tile, then connect a Thing next to it.');
+    const starts = state.board.filter(t=>t.type==='who' || t.type==='verb').map(t=>t.id);
+    highlightHintTiles(starts);
+    showToast(state.japanese ? '光ったタイル（だれ・動き）から始めよう。' : 'Start from a glowing tile — a Who or a Verb.');
     return;
   }
-  if(state.chosenSentence){
-    showToast(state.japanese ? 'いい文です！自然に聞こえたら保存しよう。' : 'Nice sentence! If it sounds natural, keep it.');
-    return;
-  }
-  if(pathBuildable()){
-    showToast(state.japanese ? '「文を作る」を押すと、自然な文を選べます。' : 'Press Build sentence to choose the natural version.');
-    return;
-  }
-  const types = new Set(tiles.map(t=>t.type));
   const last = tiles[tiles.length-1];
-  let wanted = [];
-  if(!types.has('verb')) wanted = ['verb'];
-  else if(!types.has('thing') && !types.has('describe') && !types.has('detail')) wanted = ['thing','detail','describe'];
-  else wanted = allowedAfter(last.type || 'verb');
-  const neighbors = state.board.filter(t=>!state.path.includes(t.id) && adjacent(last,t) && wanted.includes(t.type));
-  if(neighbors.length){
-    neighbors.slice(0,3).forEach(t=>flashTile(t.id));
-    showToast(state.japanese ? `近くの ${TYPES[neighbors[0].type].label} タイルを試してみて。` : `Try the nearby ${TYPES[neighbors[0].type].label} tile.`);
+  const types = new Set(tiles.map(t=>t.type));
+  // Which tile types would sensibly continue this path?
+  let wanted = allowedAfter(last.type) || [];
+  if(!types.has('verb')) wanted = ['verb','who'];
+  // Only highlight tiles touching the LAST selected tile (Boggle rule) that are unused & sensible.
+  const sensible = state.board.filter(t=>!state.path.includes(t.id) && adjacent(last,t) && wanted.includes(t.type));
+  const anyTouching = state.board.filter(t=>!state.path.includes(t.id) && adjacent(last,t));
+  const show = sensible.length ? sensible : anyTouching;
+  if(show.length){
+    highlightHintTiles(show.map(t=>t.id));
+    if(state.chosenSentence) showToast(state.japanese ? '保存するか、光ったタイルで文をのばせます。' : 'Keep it, or extend the sentence with a glowing tile.');
+    else if(pathBuildable()) showToast(state.japanese ? '「文を作る」を押すか、光ったタイルでのばそう。' : 'Press Build sentence — or extend with a glowing tile.');
+    else showToast(state.japanese ? '光ったタイルにつなげてみよう。' : 'Connect one of the glowing tiles next.');
   } else {
     showToast(state.japanese ? '近くにいいタイルがなければ、1枚交換を使ってOK。' : 'No good nearby tile? Use one swap to rescue the path.');
   }
