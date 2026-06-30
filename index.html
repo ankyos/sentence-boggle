@@ -282,6 +282,8 @@
   .card p{margin:0 0 7px;}.card ul{margin:0;padding-left:18px;}
   .script-lines{display:flex;flex-direction:column;gap:7px;}
   .script-line{background:#fff;border-radius:12px;border:1.5px solid var(--line);padding:9px 10px;font-size:16px;font-weight:850;}
+  .script-line.script-ask{border-left:5px solid var(--question);}
+  .script-hint{font-size:12px;color:var(--muted);font-weight:750;margin-top:4px;}
   .question-list{display:flex;flex-direction:column;gap:8px;}
   .q-card{border-left:5px solid var(--question);background:#fff;border-radius:13px;padding:10px 12px;border-top:1.5px solid var(--line);border-right:1.5px solid var(--line);border-bottom:1.5px solid var(--line);}
   .q-card b{font-size:17px;}.q-card div{font-size:12px;color:var(--muted);font-weight:750;margin-top:2px;}
@@ -439,7 +441,7 @@
       </div>
       <div class="card">
         <h3>Teacher note</h3>
-        <p>This is intentionally “Boggle-ish,” not pure Boggle. Strict adjacency gives the puzzle feeling, but the board is weighted by topic so students are more likely to find natural sentences.</p>
+        <p>This is intentionally “Boggle-ish,” not pure Boggle. Tap only touching tiles, and follow the colour pattern: Who → Verb → Thing. When three tiles could make a sentence, pick the natural option from the modal.</p>
         <p class="jp">単語の意味ではなく、「使い方」を色で見る。</p>
       </div>
     </div>
@@ -464,7 +466,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const STORAGE_KEY = 'sentenceQuestBoggle.v5';
+const STORAGE_KEY = 'sentenceQuestBoggle.v6';
 const TYPES = {
   who:{label:'Who', jp:'だれ', color:'var(--who)'},
   question:{label:'Question', jp:'質問', color:'var(--question)'},
@@ -575,16 +577,19 @@ const THEMES = [
     ]
   }
 ];
+// Fewer tile types on the board = clearer paths. Describe/opinion appear once each.
 const LAYOUT = [
   'who','time','verb','thing','detail',
-  'question','who','verb','thing','joiner',
-  'detail','opinion','time','verb','thing',
-  'describe','thing','verb','detail','question',
-  'who','joiner','time','verb','thing'
+  'question','who','verb','thing','detail',
+  'who','time','verb','thing','joiner',
+  'detail','who','verb','thing','question',
+  'who','joiner','time','verb','describe'
 ];
+const STARTER_TYPES = ['who','question','opinion','time'];
 let state = {
   missionIndex:0, board:[], path:[], bank:[], total:0, swaps:2, swapMode:false, votedId:null,
-  chosenForms:{}, chosenJoiners:{}, chosenLinks:{}, chosenSubject:null, chosenRewrite:null, japanese:false, checked:false, createdAt:Date.now()
+  chosenForms:{}, chosenJoiners:{}, chosenLinks:{}, chosenSubject:null, chosenRewrite:null,
+  japanese:false, checked:false, pathPrompted:false, createdAt:Date.now()
 };
 function rand(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function shuffle(arr){return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
@@ -609,15 +614,23 @@ function makeTile(type, idx, mission, oldWord=null){
 function allowedAfter(type){
   return {
     question:['who','verb','thing','time'],
-    who:['time','opinion','verb'],
+    who:['time','opinion','verb','thing'],
     opinion:['who','time','verb','thing'],
-    time:['verb'],
+    time:['verb','who'],
     verb:['thing','describe','detail','joiner'],
-    describe:['thing','detail','joiner'],
+    describe:['thing','detail'],
     thing:['detail','describe','joiner'],
-    detail:['joiner'],
-    joiner:['who','opinion','verb','thing','describe']
+    detail:['joiner','thing'],
+    joiner:['who','opinion','verb','thing','describe','detail']
   }[type] || [];
+}
+function allowedFirst(type){ return STARTER_TYPES.includes(type); }
+function grammarHintFor(lastType){
+  const next = allowedAfter(lastType).map(t=>TYPES[t].label);
+  if(!next.length) return '';
+  return state.japanese
+    ? `「${TYPES[lastType].label}」の次は ${next.slice(0,3).join(' / ')} が自然です。`
+    : `After ${TYPES[lastType].label}, try ${next.slice(0,3).join(' / ')}.`;
 }
 function allowedBefore(type){
   return Object.keys(TYPES).filter(t=>allowedAfter(t).includes(type));
@@ -658,7 +671,7 @@ function newBoard(keepMission=false){
   state.board[12] = makeTile('time',12,mission);
   state.board[13] = makeTile('verb',13,mission);
   state.board[14] = makeTile('thing',14,mission);
-  state.path=[]; state.swaps=2; state.swapMode=false; clearGrammarChoices(); state.checked=false;
+  state.path=[]; state.swaps=2; state.swapMode=false; clearGrammarChoices(); state.checked=false; state.pathPrompted=false;
 }
 function clearGrammarChoices(){
   state.chosenForms={};
@@ -667,11 +680,17 @@ function clearGrammarChoices(){
   state.chosenSubject=null;
   state.chosenRewrite=null;
 }
+function resetPathState(){
+  state.path=[];
+  state.checked=false;
+  state.pathPrompted=false;
+  clearGrammarChoices();
+}
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}}
 function load(){
   try{
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
+    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, pathPrompted:false, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
   }catch(e){}
   return false;
 }
@@ -680,16 +699,40 @@ function pathTiles(){return state.path.map(id=>state.board.find(t=>t.id===id)).f
 function addTile(tile){
   if(state.swapMode){ swapTile(tile); return; }
   if(state.path.includes(tile.id)){
-    if(state.path[state.path.length-1]===tile.id){ state.path.pop(); state.checked=false; clearGrammarChoices(); render(); save(); }
-    else showToast('You can only undo the last tile.');
+    if(state.path[state.path.length-1]===tile.id){
+      state.path.pop();
+      state.checked=false;
+      clearGrammarChoices();
+      if(!state.path.length) state.pathPrompted=false;
+      render(); save();
+    }
+    else showToast(state.japanese ? '最後のタイルだけ戻せます。' : 'You can only undo the last tile.');
     return;
   }
   const selected = pathTiles();
-  if(selected.length){
+  if(!selected.length){
+    if(!allowedFirst(tile.type)){
+      flashTile(tile.id);
+      showToast(state.japanese ? 'Who / Question / Opinion / Time から始めよう。' : 'Start with Who, Question, Opinion, or Time.');
+      return;
+    }
+  } else {
     const last = selected[selected.length-1];
-    if(!adjacent(last,tile)){ flashTile(tile.id); showToast('Boggle rule: next tile must touch the last tile.'); return; }
+    if(!adjacent(last,tile)){
+      flashTile(tile.id);
+      showToast(state.japanese ? 'Boggleルール：隣のタイルだけ選べます。' : 'Boggle rule: next tile must touch the last tile.');
+      return;
+    }
+    if(!allowedAfter(last.type).includes(tile.type)){
+      flashTile(tile.id);
+      showToast(grammarHintFor(last.type));
+      return;
+    }
   }
-  state.path.push(tile.id); state.checked=false; clearGrammarChoices(); render(); save();
+  state.path.push(tile.id); state.checked=false; clearGrammarChoices();
+  autoResolveGrammarChoices();
+  render(); save();
+  maybePromptCoreSentence();
 }
 function flashTile(id){
   const el = document.querySelector(`[data-id="${id}"]`);
@@ -854,16 +897,32 @@ function starterOptions(tiles){
   if(!verb || startsWithJoiner(tiles)) return [];
   const baseSubjects = subjectOptions(tiles);
   let starters = [...baseSubjects];
-  if(!timeWord || timeWord==='now' || timeWord==='want to') starters.push('Do you','Did you');
+  if(!timeWord || timeWord==='now' || timeWord==='want to') starters.push('Do you');
   else if(timeWord==='past') starters.push('Did you');
   else if(timeWord==='can') starters.push('Can you','Can we');
   else if(timeWord==='should') starters.push('Should we');
   else if(timeWord==='future') starters.push('Will you','Are you going to');
   const seen = new Set();
-  return starters.map(st=>{
+  const options = starters.map(st=>{
     const text = formatSentence(composeWithStarter(tiles,st));
     return text ? safeOption(text,text) : null;
-  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,6);
+  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value));
+  return rankNaturalOptions(options).slice(0,4);
+}
+function rankNaturalOptions(options){
+  return options.sort((a,b)=>{
+    const score = s=>{
+      let n = 0;
+      if(/^I /.test(s)) n += 2;
+      if(/^We /.test(s)) n += 1;
+      if(/\b(Do you|Can you|Should we)\b/.test(s)) n += 1;
+      if(/\b(Did you|Will you)\b/.test(s) && !/\b(now|today)\b/i.test(s)) n -= 1;
+      if(/\b___\b/.test(s)) n -= 5;
+      if(/\b(a|an) (a|an)\b/i.test(s)) n -= 3;
+      return n;
+    };
+    return score(b.value) - score(a.value);
+  });
 }
 function questionRewriteOptions(tiles){
   const first = tiles[0];
@@ -879,7 +938,7 @@ function questionRewriteOptions(tiles){
   else if(timeWord==='should') starters = [`${q} should we`];
   else if(timeWord==='future') starters = [`${q} will you`, `${q} are you going to`];
   else if(timeWord==='past') starters = [`${q} did you`];
-  else starters = [`${q} do you`, `${q} did you`, `${q} should we`];
+  else starters = [`${q} do you`, `${q} should we`];
   const fakeTiles = rest;
   const seen = new Set();
   return starters.map(st=>{
@@ -891,7 +950,60 @@ function questionRewriteOptions(tiles){
     const coreNoStarter = core.replace(new RegExp('^'+starter.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s+','i'),'');
     const text = formatSentence(`${q} ${starter} ${coreNoStarter}`.replace(/\s+/g,' ').trim().replace(/\.$/, '?'));
     return safeOption(text,text.replace(/\.$/, '?'));
-  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,5);
+  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,4);
+}
+function corePathReady(tiles){
+  if(tiles.length < 3 || state.chosenRewrite) return false;
+  if(startsWithJoiner(tiles)) return false;
+  if(!tiles.some(t=>t.type==='verb')) return false;
+  const hasStarter = tiles.some(t=>['who','question','opinion','time'].includes(t.type));
+  if(!hasStarter) return false;
+  const rewrite = starterOptions(tiles);
+  const qrewrite = questionRewriteOptions(tiles);
+  if(rewrite.length || qrewrite.length) return true;
+  const hasWho = tiles.some(t=>t.type==='who');
+  const hasQuestion = tiles.some(t=>t.type==='question');
+  return !hasWho && !hasQuestion && tiles.length >= 3;
+}
+function autoResolveGrammarChoices(){
+  const tiles = pathTiles();
+  if(!tiles.length || state.chosenRewrite) return;
+  const subjectTile = tiles.find(t=>t.type==='who');
+  const questionTile = tiles.find(t=>t.type==='question');
+  const subject = state.chosenSubject || (subjectTile && subjectTile.word) || (questionTile && questionTile.word==='Do you' ? 'you' : 'I');
+  const time = tiles.find(t=>t.type==='time');
+  if(time){
+    tiles.filter(t=>t.type==='verb').forEach(v=>{
+      const k = v.id+'|'+time.word;
+      if(!state.chosenForms[k]){
+        const opts = verbForms(v.word,time.word,subject);
+        if(opts.length===1) state.chosenForms[k] = opts[0];
+      }
+    });
+  }
+  tiles.forEach((t,i)=>{
+    if(t.type==='thing'){
+      const req = linkRequirement(tiles,i);
+      if(req && !state.chosenLinks[req.key] && req.options.length) state.chosenLinks[req.key] = req.options[0];
+    }
+    if(t.type==='joiner'){
+      const k = joinerKey(t,i);
+      const opts = joinerForms(tiles,i);
+      if(opts.length && !state.chosenJoiners[k]) state.chosenJoiners[k] = opts[0];
+    }
+  });
+}
+function maybePromptCoreSentence(){
+  const tiles = pathTiles();
+  if(!corePathReady(tiles) || state.pathPrompted) return;
+  const pending = choiceQueue();
+  const rewrite = pending.find(p=>p.kind==='rewrite');
+  if(!rewrite) return;
+  state.pathPrompted = true;
+  setTimeout(()=>{
+    showToast(state.japanese ? '自然な文を選びましょう。' : 'Pick the sentence that sounds natural.');
+    openChoice(rewrite);
+  }, 120);
 }
 const PLACE_WORDS = ['school','a cafe','the mall','a park','Ohori Park','Tenjin','Fukuoka','a university','the subway','a festival','home','in Japan','near school','a trip'];
 const PERSON_WORDS = ['my friends','students','our class','my family','friend'];
@@ -942,6 +1054,7 @@ function joinerForms(tiles,index){
   return [];
 }
 function choiceQueue(){
+  autoResolveGrammarChoices();
   const tiles = pathTiles();
   const q=[];
   if(!tiles.length || state.chosenRewrite) return q;
@@ -951,14 +1064,12 @@ function choiceQueue(){
   const hasSubject = tiles.some(t=>t.type==='who');
   if(!hasVerb) return q;
 
-  // Question words like Why/What need do/did/can/should, not raw "Why buy fruit?"
   if(tiles[0] && tiles[0].type==='question' && isQuestionWord(tiles[0].word)){
     const opts = questionRewriteOptions(tiles);
     if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
     return q;
   }
 
-  // Missing Who is not always an error. Offer full natural sentence/question frames.
   if(!hasSubject && !hasQuestion){
     const opts = starterOptions(tiles);
     if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
@@ -972,22 +1083,11 @@ function choiceQueue(){
   if(time){
     tiles.filter(t=>t.type==='verb').forEach(v=>{
       const k = v.id+'|'+time.word;
-      if(!state.chosenForms[k]) q.push({kind:'verb', key:k, verb:v, time, options:verbForms(v.word,time.word,subject)});
+      const opts = verbForms(v.word,time.word,subject);
+      if(opts.length===1 && !state.chosenForms[k]) state.chosenForms[k] = opts[0];
+      else if(opts.length > 1 && !state.chosenForms[k]) q.push({kind:'verb', key:k, verb:v, time, options:opts});
     });
   }
-  tiles.forEach((t,i)=>{
-    if(t.type==='thing'){
-      const req = linkRequirement(tiles,i);
-      if(req && !state.chosenLinks[req.key]) q.push({kind:'link', ...req});
-    }
-  });
-  tiles.forEach((t,i)=>{
-    if(t.type==='joiner'){
-      const k = joinerKey(t,i);
-      const opts = joinerForms(tiles,i);
-      if(opts.length && !state.chosenJoiners[k]) q.push({kind:'joiner', key:k, joiner:t, options:opts});
-    }
-  });
   return q;
 }
 function pathHasBlank(text){ return /___/.test(text || ''); }
@@ -1067,7 +1167,11 @@ function analyse(tiles,text,needsChoice=false,forceValid=false){
   }
   const hits = new Set();
   if(valid){
-    if((mission.id==='food' && [...words].some(w=>mission.things.includes(w))) || (mission.id==='fukuoka' && [...words].some(w=>mission.things.includes(w))) || ['friends','school'].includes(mission.id)) hits.add('topic');
+    const missionWords = new Set(mission.things);
+    if(mission.id==='food' && [...words].some(w=>missionWords.has(w))) hits.add('topic');
+    if(mission.id==='fukuoka' && [...words].some(w=>missionWords.has(w))) hits.add('topic');
+    if(mission.id==='friends' && [...words].some(w=>/friend|class|club|people|students/i.test(w))) hits.add('topic');
+    if(mission.id==='school' && [...words].some(w=>/school|class|homework|club|test|english|ipad/i.test(w))) hits.add('topic');
     if(hasJoiner || ['because','but','so'].some(w=>words.has(w))) hits.add('reason');
     if(hasQuestion) hits.add('question');
     if(hasDetail) hits.add('detail');
@@ -1102,7 +1206,7 @@ function keepSentence(){
   const text = formatSentence(d.text);
   const pts = scoreCurrent();
   const item = {id:'s'+Date.now()+Math.random().toString(36).slice(2,5), text, pts, hits:d.analysis.hits, tiles:d.tiles.map(t=>({type:t.type,word:t.word})), mission:currentMission().topic};
-  state.bank.push(item); state.total += pts; state.path=[]; clearGrammarChoices(); state.checked=false;
+  state.bank.push(item); state.total += pts; resetPathState();
   showToast('Kept! +' + pts + ' points'); render(); save();
 }
 function formatSentence(text){
@@ -1118,42 +1222,75 @@ function voteSentence(id){
   b.pts += 3; b.voted=true; state.total += 3; state.votedId=id;
   showToast('Peer vote bonus! +3'); render(); save();
 }
+function naturalQuestionFor(sentence){
+  const text = sentence.text || '';
+  const thing = (sentence.tiles||[]).find(t=>t.type==='thing');
+  const verb = (sentence.tiles||[]).find(t=>t.type==='verb');
+  const detail = (sentence.tiles||[]).find(t=>t.type==='detail');
+  if(text.endsWith('?')) return {q:'What about you?', hint:'Answer with your own idea.'};
+  if(verb && thing && !/\b(talk about|use|finish|join|help)\b/i.test(verb.word)){
+    return {q:`Do you ${verb.word} ${thing.word}?`, hint:'Yes, I do. / No, I don\'t. Why?'};
+  }
+  if(thing) return {q:`What do you think about ${thing.word}?`, hint:'I think ___ because ___.'};
+  if(detail) return {q:`What do you usually do ${detail.word}?`, hint:'I usually ___.'};
+  if(/\bbecause\b/i.test(text)) return {q:'Why do you think that?', hint:'Because ___.'};
+  return {q:'What about you?', hint:'Use one of your kept sentences.'};
+}
 function generatedQuestions(){
   const qs=[]; const seen=new Set();
   const topic=currentMission().topic.toLowerCase();
   state.bank.forEach(b=>{
-    const thing=(b.tiles||[]).find(t=>t.type==='thing');
-    const verb=(b.tiles||[]).find(t=>t.type==='verb');
-    const detail=(b.tiles||[]).find(t=>t.type==='detail');
-    if(thing && !seen.has('thing'+thing.word)){ qs.push({q:`What do you think about ${thing.word}?`, hint:'I think ___ because ___.'}); seen.add('thing'+thing.word); }
-    if(verb && thing && !seen.has('verbthing'+verb.word+thing.word)){ qs.push({q:`Do you ${verb.word} ${thing.word}?`, hint:'Yes, I do. / No, I don\'t. Why?'}); seen.add('verbthing'+verb.word+thing.word); }
-    if(detail && !seen.has('detail'+detail.word)){ qs.push({q:`What do you usually do ${detail.word}?`, hint:'I usually ___.'}); seen.add('detail'+detail.word); }
+    const follow = naturalQuestionFor(b);
+    const key = follow.q;
+    if(!seen.has(key)){ qs.push(follow); seen.add(key); }
   });
   const backup = [
     {q:`What ${topic} do you like?`, hint:'I like ___.'},
-    {q:`What do you want to try?`, hint:'I want to try ___ because ___.'},
+    {q:'Can you say more?', hint:'Add one detail or reason.'},
     {q:'What about you?', hint:'Use this after your answer.'},
-    {q:'Why?', hint:'Answer with because ___.'},
-    {q:'Which sentence is the most interesting?', hint:'I choose ___ because ___.'}
+    {q:'Why?', hint:'Answer with because ___.'}
   ];
-  return qs.concat(backup).slice(0,6);
+  return qs.concat(backup).slice(0,5);
+}
+function buildConversationScript(sentences){
+  if(!sentences.length){
+    return [
+      {speaker:'A', text:'Keep at least one sentence first.'},
+      {speaker:'B', text:'Then come back for the conversation script.'}
+    ];
+  }
+  const lines=[];
+  sentences.forEach((s,i)=>{
+    const speaker = i % 2 === 0 ? 'A' : 'B';
+    lines.push({speaker, text:s.text, kind:'say'});
+    const follow = naturalQuestionFor(s);
+    const responder = speaker === 'A' ? 'B' : 'A';
+    lines.push({speaker:responder, text:follow.q, kind:'ask', hint:follow.hint});
+    if(i < sentences.length - 1 && i % 2 === 0){
+      lines.push({speaker:'A', text:'Me too. / Really?', kind:'react'});
+    }
+  });
+  return lines.slice(0,10);
 }
 function openFinale(){
   const cards=document.getElementById('finaleCards');
-  const sentences=state.bank.slice(-6);
+  const sentences=state.bank.slice(-4);
   const q=generatedQuestions();
+  const script=buildConversationScript(sentences);
   cards.innerHTML = `
     <div class="card">
       <h3>Your sentence board</h3>
       ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):'<p>No sentences yet. Keep at least one first.</p>'}
     </div>
-    <div class="card">
+    <div class="card" style="grid-column:1 / -1">
       <h3>Conversation script</h3>
+      <p>${state.japanese ? '作った文をそのまま使って、AとBが会話します。' : 'Use your kept sentences in order. A and B take turns.'}</p>
       <div class="script-lines">
-        <div class="script-line">A: I choose this sentence: “_____.”</div>
-        <div class="script-line">B: ${escapeHTML(q[0]?.q || 'What about you?')}</div>
-        <div class="script-line">A: I think _____ because _____.</div>
-        <div class="script-line">B: Really? / Same here. Why?</div>
+        ${script.map(line=>`
+          <div class="script-line ${line.kind==='ask'?'script-ask':''}">
+            <b>${line.speaker}:</b> ${escapeHTML(line.text)}
+            ${line.hint ? `<div class="script-hint">${escapeHTML(line.hint)}</div>` : ''}
+          </div>`).join('')}
       </div>
     </div>
     <div class="card">
@@ -1162,7 +1299,7 @@ function openFinale(){
     </div>
     <div class="card">
       <h3>Peer vote finale</h3>
-      <p>Each group reads their best sentence. Other groups ask one follow-up question. Vote for the most interesting sentence, not the longest one.</p>
+      <p>Each group reads their conversation. Other groups ask one follow-up question. Vote for the most natural dialogue, not the longest one.</p>
       <ul>
         <li>Interesting idea?</li>
         <li>Natural English?</li>
@@ -1278,10 +1415,10 @@ function renderLanguage(){
   document.getElementById('jpToggleBtn').textContent = state.japanese ? '日本語 ON' : '日本語 OFF';
   document.getElementById('guideBtn').innerHTML = state.japanese ? 'Guide <span class="jp">ガイド</span>' : 'Guide';
   document.getElementById('resetBtn').textContent = state.japanese ? 'リセット' : 'Reset';
-  document.getElementById('boardHint').textContent = state.japanese ? '自然な英文になるように、つながったタイルを探そう。' : 'Find a connected path that makes natural English.';
+  document.getElementById('boardHint').textContent = state.japanese ? 'Who → Verb → Thing の順が作りやすい。隣のタイルだけ選べます。' : 'Easy pattern: Who → Verb → Thing. Only tap tiles that touch your path.';
   document.getElementById('rulesCard').innerHTML = state.japanese
-    ? '<b>ルール:</b> Boggleのように、となり合うタイルをタップします。交換は<b>2回だけ</b>。ミッションが全部緑になったら会話ファイナル。'
-    : '<b>Rule:</b> Tap connected tiles like Boggle. Your next tile must touch the last one. You get <b>2 swaps</b>, not unlimited rerolls. When all mission goals are green, do the conversation finale.';
+    ? '<b>ルール:</b> Who / Question から始め、隣のタイルだけ選ぶ。3つつながったら自然な文を選ぶモーダルが出ます。交換は<b>2回だけ</b>。'
+    : '<b>Rule:</b> Start with Who or Question. Only tap touching tiles. At 3 connected tiles, pick a natural sentence from the modal. You get <b>2 swaps</b>.';
   document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒント' : 'Nudge hint';
   document.getElementById('swapBtn').textContent = state.swapMode ? (state.japanese?'交換するタイルをタップ':'Tap tile to swap') : (state.japanese?'1枚交換':'Swap 1 tile');
   document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
@@ -1347,6 +1484,7 @@ function selectChoice(value){
   }
 }
 function checkSentence(){
+  autoResolveGrammarChoices();
   state.checked=true;
   const next = choiceQueue()[0];
   if(next){ openChoice(next); render(); save(); return; }
@@ -1374,7 +1512,7 @@ function nudgeHint(){
   const d = sentenceData();
   const pending = choiceQueue();
   if(!tiles.length){
-    showToast(state.japanese ? 'まず Who か Question から始めると作りやすいです。' : 'Try starting with Who or Question, then find a Verb touching it.');
+    showToast(state.japanese ? 'Who か Question から始めよう。' : 'Start with Who or Question, then find Verb → Thing.');
     return;
   }
   if(pending.length){
@@ -1415,13 +1553,13 @@ function showToast(msg){
 document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast('New mission!');render();});
 document.getElementById('nudgeBtn').addEventListener('click',nudgeHint);
 document.getElementById('swapBtn').addEventListener('click',()=>{ if(state.swaps<=0){showToast(state.japanese?'交換はもうありません。':'No swaps left.');return;} state.swapMode=!state.swapMode; render(); });
-document.getElementById('clearBtn').addEventListener('click',()=>{state.path=[];state.chosenForms={};state.chosenJoiners={};state.chosenLinks={};state.chosenSubject=null;state.checked=false;render();});
+document.getElementById('clearBtn').addEventListener('click',()=>{resetPathState();render();});
 document.getElementById('checkBtn').addEventListener('click',checkSentence);
 document.getElementById('jpToggleBtn').addEventListener('click',()=>{state.japanese=!state.japanese;render();});
 document.getElementById('keepBtn').addEventListener('click',keepSentence);
 document.getElementById('finaleBtn').addEventListener('click',openFinale);
 document.getElementById('guideBtn').addEventListener('click',()=>document.getElementById('guideOverlay').classList.add('open'));
-document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,checked:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
+document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,checked:false,pathPrompted:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
 document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>document.getElementById(btn.dataset.close).classList.remove('open')));
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 renderLegend();
