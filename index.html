@@ -439,8 +439,8 @@
       </div>
       <div class="card">
         <h3>Teacher note</h3>
-        <p>This is intentionally “Boggle-ish,” not pure Boggle. Strict adjacency gives the puzzle feeling, but the board is weighted by topic so students are more likely to find natural sentences.</p>
-        <p class="jp">単語の意味ではなく、「使い方」を色で見る。</p>
+        <p>Six tile types only: Who, Verb, Thing, Describe, Detail, Joiner. Students connect touching tiles, then press <b>Build sentence</b>. The app offers a few <b>fully natural</b> sentences and questions (present / past / future) made from those tiles — they pick the one they mean. Questions are always grammatical, so no nonsense like “Why buy fruit?”.</p>
+        <p class="jp">タイルをつなげて「文を作る」を押すと、自然な文・質問の候補から選べます。</p>
       </div>
     </div>
   </div>
@@ -464,12 +464,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const STORAGE_KEY = 'sentenceQuestBoggle.v5';
+const STORAGE_KEY = 'sentenceQuestBoggle.v6';
 const TYPES = {
   who:{label:'Who', jp:'だれ', color:'var(--who)'},
-  question:{label:'Question', jp:'質問', color:'var(--question)'},
-  opinion:{label:'Opinion', jp:'考え', color:'var(--opinion)'},
-  time:{label:'Time', jp:'時', color:'var(--time)'},
   verb:{label:'Verb', jp:'動き', color:'var(--verb)'},
   thing:{label:'Thing', jp:'もの', color:'var(--thing)'},
   describe:{label:'Describe', jp:'様子', color:'var(--describe)'},
@@ -477,22 +474,16 @@ const TYPES = {
   joiner:{label:'Joiner', jp:'つなぐ', color:'var(--joiner)'}
 };
 const GUIDE = [
-  ['who','Who','動作をする人。主語。','I / We / my friends'],
-  ['verb','Verb','動き・気持ちを表す。','like / go / try'],
-  ['time','Time','動詞の時や気持ちを変える。','past / future / can'],
-  ['thing','Thing','物・場所・こと。','food / school / games'],
+  ['who','Who','動作をする人。主語。','I / we / my friends'],
+  ['verb','Verb','動き・気持ちを表す。','like / go / eat'],
+  ['thing','Thing','物・場所・こと。','pizza / games / school'],
   ['describe','Describe','様子を説明する。','fun / delicious / hard'],
   ['detail','Detail','場所・時・相手を足す。','after school / with friends'],
-  ['joiner','Joiner','2つの考えをつなぐ。','because / but / so'],
-  ['question','Question','相手に聞く形を作る。','Do you / What / Why'],
-  ['opinion','Opinion','自分の考えを出す。','I think / for me']
+  ['joiner','Joiner','2つの考えをつなぐ。','because / but / so']
 ];
 const BASE = {
-  who:['I','you','we','my friends','students','our class','my family'],
-  question:['Do you','What','Where','When','Why','How'],
-  opinion:['I think','for me','actually','maybe','really'],
-  time:['now','past','future','can','should','want to'],
-  joiner:['because','but','so','when','if','and'],
+  who:['I','we','my friends','students','our class','my family'],
+  joiner:['because','but','so','and'],
   describe:['fun','good','easy','hard','interesting','relaxing','popular','new']
 };
 const THEMES = [
@@ -576,20 +567,19 @@ const THEMES = [
   }
 ];
 const LAYOUT = [
-  'who','time','verb','thing','detail',
-  'question','who','verb','thing','joiner',
-  'detail','opinion','time','verb','thing',
-  'describe','thing','verb','detail','question',
-  'who','joiner','time','verb','thing'
+  'who','verb','thing','describe','who',
+  'verb','thing','detail','verb','thing',
+  'who','verb','thing','describe','detail',
+  'thing','detail','verb','thing','verb',
+  'who','verb','joiner','thing','who'
 ];
 let state = {
   missionIndex:0, board:[], path:[], bank:[], total:0, swaps:2, swapMode:false, votedId:null,
-  chosenForms:{}, chosenJoiners:{}, chosenLinks:{}, chosenSubject:null, chosenRewrite:null, japanese:false, checked:false, createdAt:Date.now()
+  chosenSentence:null, japanese:false, createdAt:Date.now()
 };
 function rand(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function shuffle(arr){return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
 function escapeHTML(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-function capitalizeSentence(s){if(!s)return '';return s.charAt(0).toUpperCase()+s.slice(1)+(s.endsWith('?')?'':'.');}
 function currentMission(){return THEMES[state.missionIndex % THEMES.length];}
 function typePool(type, mission){
   if(type==='verb') return mission.verbs;
@@ -608,15 +598,12 @@ function makeTile(type, idx, mission, oldWord=null){
 }
 function allowedAfter(type){
   return {
-    question:['who','verb','thing','time'],
-    who:['time','opinion','verb'],
-    opinion:['who','time','verb','thing'],
-    time:['verb'],
+    who:['verb'],
     verb:['thing','describe','detail','joiner'],
-    describe:['thing','detail','joiner'],
     thing:['detail','describe','joiner'],
-    detail:['joiner'],
-    joiner:['who','opinion','verb','thing','describe']
+    describe:['thing','detail','joiner'],
+    detail:['joiner','verb'],
+    joiner:['who','verb','thing','describe']
   }[type] || [];
 }
 function allowedBefore(type){
@@ -646,7 +633,7 @@ function smartSwapType(tile){
   if(!candidates.length) return tile.type;
   // Prefer useful missing pieces, but do not force it every time.
   const currentTypes = new Set(tiles.map(t=>t.type));
-  const missingPriority = ['verb','thing','who','joiner','describe','detail','time','opinion','question'];
+  const missingPriority = ['verb','thing','who','describe','detail','joiner'];
   const useful = missingPriority.find(t=>candidates.includes(t) && !currentTypes.has(t));
   return useful || rand(candidates);
 }
@@ -654,24 +641,21 @@ function newBoard(keepMission=false){
   if(!keepMission) state.missionIndex = Math.floor(Math.random()*THEMES.length);
   const mission = currentMission();
   state.board = LAYOUT.map((type,idx)=>makeTile(type,idx,mission));
-  // Make the centre area extra mission-friendly.
-  state.board[12] = makeTile('time',12,mission);
-  state.board[13] = makeTile('verb',13,mission);
-  state.board[14] = makeTile('thing',14,mission);
-  state.path=[]; state.swaps=2; state.swapMode=false; clearGrammarChoices(); state.checked=false;
+  // Guarantee an easy Who -> Verb -> Thing line through the middle row.
+  state.board[10] = makeTile('who',10,mission);
+  state.board[11] = makeTile('verb',11,mission);
+  state.board[12] = makeTile('thing',12,mission);
+  state.path=[]; state.swaps=2; state.swapMode=false; resetChoice();
 }
-function clearGrammarChoices(){
-  state.chosenForms={};
-  state.chosenJoiners={};
-  state.chosenLinks={};
-  state.chosenSubject=null;
-  state.chosenRewrite=null;
+function resetChoice(){
+  state.chosenSentence=null;
 }
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}}
 function load(){
   try{
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(saved && Array.isArray(saved.board) && saved.board.length===25){ state = {...state,...saved, swapMode:false, checked:false, chosenForms:saved.chosenForms||{}, chosenJoiners:saved.chosenJoiners||{}, chosenLinks:saved.chosenLinks||{}, chosenSubject:saved.chosenSubject||null, chosenRewrite:saved.chosenRewrite||null}; return true; }
+    const validBoard = saved && Array.isArray(saved.board) && saved.board.length===25 && saved.board.every(t=>t && TYPES[t.type]);
+    if(validBoard){ state = {...state,...saved, swapMode:false, chosenSentence:null}; return true; }
   }catch(e){}
   return false;
 }
@@ -680,7 +664,7 @@ function pathTiles(){return state.path.map(id=>state.board.find(t=>t.id===id)).f
 function addTile(tile){
   if(state.swapMode){ swapTile(tile); return; }
   if(state.path.includes(tile.id)){
-    if(state.path[state.path.length-1]===tile.id){ state.path.pop(); state.checked=false; clearGrammarChoices(); render(); save(); }
+    if(state.path[state.path.length-1]===tile.id){ state.path.pop(); resetChoice(); render(); save(); }
     else showToast('You can only undo the last tile.');
     return;
   }
@@ -689,7 +673,7 @@ function addTile(tile){
     const last = selected[selected.length-1];
     if(!adjacent(last,tile)){ flashTile(tile.id); showToast('Boggle rule: next tile must touch the last tile.'); return; }
   }
-  state.path.push(tile.id); state.checked=false; clearGrammarChoices(); render(); save();
+  state.path.push(tile.id); resetChoice(); render(); save();
 }
 function flashTile(id){
   const el = document.querySelector(`[data-id="${id}"]`);
@@ -714,7 +698,7 @@ function swapTile(tile){
   }
   state.board[idx]=replacement;
   state.path = state.path.filter(id=>id!==tile.id);
-  state.swaps--; state.swapMode=false; state.checked=false; clearGrammarChoices();
+  state.swaps--; state.swapMode=false; resetChoice();
   showToast(state.japanese?'タイルを交換しました。':'Tile swapped. Use what you get!');
   render(); save();
 }
@@ -748,18 +732,17 @@ function verbForms(verb, timeWord, subject){
   if(timeWord==='now') return [simplePresentVerb(base, subject), prog];
   return [simplePresentVerb(base, subject)];
 }
-function subjectOptions(tiles){
-  const mission = currentMission().id;
-  let opts = ['I','we','my friends','students'];
-  if(mission==='friends') opts = ['I','we','my friends','our class'];
-  if(mission==='school') opts = ['I','we','students','our class'];
-  if(mission==='future') opts = ['I','we','students','my friends'];
-  return opts;
+function isPlural(word){
+  const w = (word || '').toLowerCase();
+  if(['i','we','they','my friends','students','our class','my family','you'].includes(w)) return !['our class','my family'].includes(w);
+  return /s$/.test(w) && !/(ss|us|is|ics)$/.test(w);
 }
-
-function startsWithJoiner(tiles){ return tiles[0] && tiles[0].type==='joiner'; }
-function isQuestionStarter(s){ return /^(do you|did you|can you|can we|should we|will you|are you going to|would you)\b/i.test(s || ''); }
-function isQuestionWord(w){ return /^(what|where|when|why|how)$/i.test(w || ''); }
+function conjugate(verb, tense, subject){
+  if(tense==='past') return verbForms(verb,'past',subject)[0];
+  if(tense==='future') return 'will '+verb;
+  if(tense==='wantto') return simplePresentVerb('want',subject)+' to '+verb;
+  return simplePresentVerb(verb, subject);
+}
 function safeOption(value,label){ return {value, label:label || value}; }
 function optionValue(o){ return (o && typeof o==='object') ? o.value : o; }
 function optionLabel(o){ return (o && typeof o==='object') ? (o.label || o.value) : o; }
@@ -769,8 +752,6 @@ function articleFix(text){
              .replace(/\ba interesting\b/g,'an interesting')
              .replace(/\ba important\b/g,'an important');
 }
-function firstOfType(tiles,type){ return tiles.find(t=>t.type===type); }
-function hasTileType(tiles,type){ return tiles.some(t=>t.type===type); }
 function autoLinkOptionsFor(verbWord, nounWord){
   let options=[];
   if(verbWord==='go' || verbWord==='come') options=['to'];
@@ -779,7 +760,7 @@ function autoLinkOptionsFor(verbWord, nounWord){
   else if(verbWord==='work' || verbWord==='study') options=looksLikePlace(nounWord)?['at','in']:[];
   else if(verbWord==='talk about') options=[];
   else if(verbWord==='talk') options=looksLikePerson(nounWord)?['with']:['about'];
-  else if(verbWord==='help') options=['with'];
+  else if(verbWord==='help') options=looksLikePerson(nounWord)?[]:['with'];
   else if(verbWord==='play') options=looksLikePerson(nounWord)?['with']:[];
   else if(verbWord==='share') options=looksLikePerson(nounWord)?['with']:[];
   else if(verbWord==='listen') options=['to'];
@@ -787,111 +768,104 @@ function autoLinkOptionsFor(verbWord, nounWord){
   else if(verbWord==='sleep') options=looksLikePlace(nounWord)?['at','in']:[];
   return [...new Set(options)];
 }
-function verbPhraseForStarter(verb, timeWord, starter){
-  const base = verb;
-  const lower = (starter || '').toLowerCase();
-  if(lower==='did you') return timeWord==='want to' ? 'want to '+base : base;
-  if(lower==='do you'){
-    if(timeWord==='want to') return 'want to '+base;
-    return base;
-  }
-  if(lower==='can you' || lower==='can we' || lower==='should we' || lower==='will you') return base;
-  if(lower==='are you going to') return base;
-  if(timeWord==='future') return 'will '+base;
-  if(timeWord==='can') return 'can '+base;
-  if(timeWord==='should') return 'should '+base;
-  if(timeWord==='want to') return simplePresentVerb('want', starter)+' to '+base;
-  if(timeWord==='past') return verbForms(base,'past',starter)[0];
-  return simplePresentVerb(base, starter);
-}
-function composeWithStarter(tiles, starter){
-  const time = firstOfType(tiles,'time');
-  const timeWord = time ? time.word : null;
-  const verb = firstOfType(tiles,'verb');
-  const words=[];
-  if(!verb) return '';
-  if(starter) words.push(starter);
-  let lastVerbWord = null;
-  tiles.forEach((t,i)=>{
-    if(['who','question','opinion','time'].includes(t.type)) return;
-    if(t.type==='joiner'){
-      // A leading joiner is a fragment. Middle joiners are kept for students to handle.
-      if(i>0) words.push(t.word);
-      return;
+// Build ONE natural clause from a small set of tiles.
+// subject: a Who word ("I", "we", "my friends"...) used for statements.
+// mode: 'statement' | 'question'
+function simpleClause(tiles, subject, tense, mode){
+  const verbTile = tiles.find(t=>t.type==='verb');
+  const things = tiles.filter(t=>t.type==='thing');
+  const describes = tiles.filter(t=>t.type==='describe');
+  const details = tiles.filter(t=>t.type==='detail');
+  const isQuestion = mode==='question';
+
+  if(verbTile){
+    const parts = [];
+    if(isQuestion){
+      const aux = tense==='past' ? 'Did' : tense==='future' ? 'Will' : 'Do';
+      parts.push(aux, 'you', verbTile.word);
+    } else {
+      parts.push(subject, conjugate(verbTile.word, tense, subject));
     }
-    if(t.type==='verb'){
-      const phrase = verbPhraseForStarter(t.word,timeWord,starter || 'I');
-      words.push(phrase); lastVerbWord=t.word; return;
-    }
-    if(t.type==='describe'){
-      const prevThing = tiles.slice(0,i).reverse().find(x=>x.type==='thing');
-      const nextThing = tiles.slice(i+1).find(x=>x.type==='thing');
-      if(nextThing){ words.push(t.word); }
-      else if(prevThing){ words.push(beForSubject(prevThing.word)); words.push(t.word); }
-      else words.push(t.word);
-      return;
-    }
-    if(t.type==='thing'){
-      const v = lastVerbBefore(tiles,i);
-      if(v){
-        const between = tiles.slice(v.index+1,i);
-        const alreadyLinked = between.some(x=>x.type==='detail' && /^(at|in|on|to|with|near|after|before)\b/i.test(x.word));
-        const opts = alreadyLinked ? [] : autoLinkOptionsFor(v.tile.word,t.word);
-        if(opts.length) words.push(opts[0]);
+    things.forEach((thing,idx)=>{
+      if(idx>0) parts.push('and');
+      else {
+        const link = autoLinkOptionsFor(verbTile.word, thing.word)[0];
+        if(link) parts.push(link);
       }
-      words.push(t.word); return;
+      parts.push(thing.word);
+    });
+    details.forEach(d=>parts.push(d.word));
+    const s = articleFix(parts.join(' ').replace(/\s+/g,' ').trim());
+    return isQuestion ? s+'?' : s;
+  }
+
+  // No verb: a describing ("be") sentence.
+  if(things.length && describes.length){
+    const th = things[0].word;
+    const be = isPlural(th) ? 'are' : 'is';
+    if(isQuestion) return `Do you think ${th} ${be} ${describes[0].word}?`;
+    return `${th} ${be} ${describes[0].word}`;
+  }
+  if(subject && describes.length){
+    return `${subject} ${beForSubject(subject)} ${describes[0].word}`;
+  }
+  return '';
+}
+// Generate a SMALL set of complete, natural sentences/questions from the path.
+// This is the heart of the "choose the correct sentence" modal.
+function buildSentenceOptions(){
+  let tiles = pathTiles();
+  while(tiles.length && tiles[0].type==='joiner') tiles = tiles.slice(1);
+  while(tiles.length && tiles[tiles.length-1].type==='joiner') tiles = tiles.slice(0,-1);
+  if(!tiles.length) return [];
+  const opts = [];
+  const add = s=>{ const f = formatSentence(s); if(f && !opts.some(o=>o.value===f)) opts.push(safeOption(f,f)); };
+
+  // Two-idea sentence with a joiner in the middle (because / but / so / and).
+  const ji = tiles.findIndex(t=>t.type==='joiner');
+  if(ji>0 && ji<tiles.length-1){
+    const left = tiles.slice(0,ji);
+    const jw = tiles[ji].word;
+    const right = tiles.slice(ji+1);
+    const leftSubj = (left.find(t=>t.type==='who')||{}).word || 'I';
+    const leftStr = simpleClause(left, leftSubj, 'present', 'statement');
+    const rWho = (right.find(t=>t.type==='who')||{}).word;
+    const rHasVerb = right.some(t=>t.type==='verb');
+    const rSubj = rWho || (rHasVerb ? leftSubj : 'it');
+    let rightStr = simpleClause(right, rSubj, 'present', 'statement');
+    if(!rightStr){
+      const rThing = right.find(t=>t.type==='thing');
+      if(rThing) rightStr = `I like ${rThing.word}`;
     }
-    if(t.type==='detail'){ words.push(t.word); return; }
-  });
-  let sentence = articleFix(words.join(' ').replace(/\s+/g,' ').trim());
-  if(isQuestionStarter(starter)) sentence += '?';
-  return sentence;
-}
-function starterOptions(tiles){
-  const time = firstOfType(tiles,'time');
-  const timeWord = time ? time.word : null;
-  const verb = firstOfType(tiles,'verb');
-  if(!verb || startsWithJoiner(tiles)) return [];
-  const baseSubjects = subjectOptions(tiles);
-  let starters = [...baseSubjects];
-  if(!timeWord || timeWord==='now' || timeWord==='want to') starters.push('Do you','Did you');
-  else if(timeWord==='past') starters.push('Did you');
-  else if(timeWord==='can') starters.push('Can you','Can we');
-  else if(timeWord==='should') starters.push('Should we');
-  else if(timeWord==='future') starters.push('Will you','Are you going to');
-  const seen = new Set();
-  return starters.map(st=>{
-    const text = formatSentence(composeWithStarter(tiles,st));
-    return text ? safeOption(text,text) : null;
-  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,6);
-}
-function questionRewriteOptions(tiles){
-  const first = tiles[0];
-  if(!first || first.type!=='question' || !isQuestionWord(first.word)) return [];
-  const verb = firstOfType(tiles,'verb');
-  if(!verb) return [];
-  const rest = tiles.slice(1);
-  const q = first.word;
-  const time = firstOfType(tiles,'time');
-  const timeWord = time ? time.word : null;
-  let starters = [];
-  if(timeWord==='can') starters = [`${q} can you`, `${q} can we`];
-  else if(timeWord==='should') starters = [`${q} should we`];
-  else if(timeWord==='future') starters = [`${q} will you`, `${q} are you going to`];
-  else if(timeWord==='past') starters = [`${q} did you`];
-  else starters = [`${q} do you`, `${q} did you`, `${q} should we`];
-  const fakeTiles = rest;
-  const seen = new Set();
-  return starters.map(st=>{
-    const parts = st.split(' ');
-    // composeWithStarter expects starters like Do you / Should we; keep the question word outside.
-    const starter = parts.slice(1).join(' ');
-    const core = composeWithStarter(fakeTiles, starter);
-    if(!core) return null;
-    const coreNoStarter = core.replace(new RegExp('^'+starter.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s+','i'),'');
-    const text = formatSentence(`${q} ${starter} ${coreNoStarter}`.replace(/\s+/g,' ').trim().replace(/\.$/, '?'));
-    return safeOption(text,text.replace(/\.$/, '?'));
-  }).filter(Boolean).filter(o=>!seen.has(o.value) && seen.add(o.value)).slice(0,5);
+    if(leftStr && rightStr) add(`${leftStr} ${jw} ${rightStr}`);
+    if(leftStr) add(leftStr);
+    return opts.slice(0,5);
+  }
+
+  const whoTile = tiles.find(t=>t.type==='who');
+  const verbTile = tiles.find(t=>t.type==='verb');
+  const things = tiles.filter(t=>t.type==='thing');
+  const describes = tiles.filter(t=>t.type==='describe');
+
+  if(verbTile){
+    const subj = whoTile ? whoTile.word : 'I';
+    const stative = ['like','love','want','need','hate','know'].includes(verbTile.word);
+    add(simpleClause(tiles, subj, 'present', 'statement'));
+    if(!whoTile) add(simpleClause(tiles, 'we', 'present', 'statement'));
+    add(simpleClause(tiles, subj, 'present', 'question'));
+    add(simpleClause(tiles, subj, 'past', 'statement'));
+    if(!stative) add(simpleClause(tiles, subj, 'future', 'statement'));
+  }
+  // Describing sentences come from Thing + Describe (no awkward adjective insertion).
+  if(things.length && describes.length){
+    const pair = [things[0], describes[0]];
+    add(simpleClause(pair, '', 'present', 'statement'));
+    add('I think ' + simpleClause(pair, '', 'present', 'statement'));
+    add(simpleClause(pair, '', 'present', 'question'));
+  } else if(whoTile && describes.length && !verbTile && !things.length){
+    add(simpleClause([whoTile, describes[0]], whoTile.word, 'present', 'statement'));
+  }
+  return opts.slice(0,5);
 }
 const PLACE_WORDS = ['school','a cafe','the mall','a park','Ohori Park','Tenjin','Fukuoka','a university','the subway','a festival','home','in Japan','near school','a trip'];
 const PERSON_WORDS = ['my friends','students','our class','my family','friend'];
@@ -901,190 +875,33 @@ function looksLikePlace(word){
 function looksLikePerson(word){
   return PERSON_WORDS.some(p=>word===p || word.includes(p)) || /friend|family|student|class/i.test(word);
 }
-function lastVerbBefore(tiles, idx){
-  for(let i=idx-1;i>=0;i--) if(tiles[i].type==='verb') return {tile:tiles[i], index:i};
-  return null;
-}
-function linkKey(verb, thing){ return 'link|'+verb.id+'|'+thing.id; }
-function linkRequirement(tiles, thingIndex){
-  const thing = tiles[thingIndex];
-  if(!thing || thing.type!=='thing') return null;
-  const v = lastVerbBefore(tiles, thingIndex);
-  if(!v) return null;
-  const between = tiles.slice(v.index+1, thingIndex);
-  if(between.some(t=>t.type==='detail' && /^(at|in|on|to|with|near|after|before)\b/i.test(t.word))) return null;
-  const verb = v.tile.word;
-  const noun = thing.word;
-  let options = autoLinkOptionsFor(verb, noun);
-  return options.length ? {key:linkKey(v.tile, thing), verb:v.tile, thing, options} : null;
-}
-function joinerKey(tile,index){ return 'joiner|'+tile.id+'|'+index; }
-function joinerForms(tiles,index){
-  const tile = tiles[index];
-  const next = tiles[index+1];
-  if(!tile || tile.type!=='joiner' || !next) return [];
-  if(index===0) return [];
-  const j = tile.word;
-  if(next.type==='who' || next.type==='question' || next.type==='opinion') return [];
-  if(next.type==='describe'){
-    const prevThing = [...tiles.slice(0,index)].reverse().find(t=>t.type==='thing');
-    const pluralish = prevThing && /friends|students|games|snacks|photos|uniforms|sports/i.test(prevThing.word);
-    const main = pluralish ? [`${j} they are`, `${j} those are`] : [`${j} it is`, `${j} that is`];
-    return [...main, `${j} I think it is`];
-  }
-  if(next.type==='verb') return [`${j} I`, `${j} we`, `${j} they`];
-  if(next.type==='thing'){
-    const hasLaterVerb = tiles.slice(index+1).some(t=>t.type==='verb');
-    if(hasLaterVerb) return [];
-    return [`${j} I like`, `${j} we need`, `${j} it is about`];
-  }
-  if(next.type==='detail') return [`${j} it happens`, `${j} we go`];
-  return [];
-}
-function choiceQueue(){
+function pathBuildable(){ return buildSentenceOptions().length>0; }
+// Inspect the sentence the student CHOSE in the modal (always grammatical),
+// and tag which mission goals it satisfies.
+function analyseChosen(){
   const tiles = pathTiles();
-  const q=[];
-  if(!tiles.length || state.chosenRewrite) return q;
-  if(startsWithJoiner(tiles)) return q;
-  const hasVerb = tiles.some(t=>t.type==='verb');
-  const hasQuestion = tiles.some(t=>t.type==='question');
-  const hasSubject = tiles.some(t=>t.type==='who');
-  if(!hasVerb) return q;
-
-  // Question words like Why/What need do/did/can/should, not raw "Why buy fruit?"
-  if(tiles[0] && tiles[0].type==='question' && isQuestionWord(tiles[0].word)){
-    const opts = questionRewriteOptions(tiles);
-    if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
-    return q;
-  }
-
-  // Missing Who is not always an error. Offer full natural sentence/question frames.
-  if(!hasSubject && !hasQuestion){
-    const opts = starterOptions(tiles);
-    if(opts.length) q.push({kind:'rewrite', key:'rewrite', options:opts});
-    return q;
-  }
-
-  const subjectTile = tiles.find(t=>t.type==='who');
-  const questionTile = tiles.find(t=>t.type==='question');
-  const subject = state.chosenSubject || (subjectTile && subjectTile.word) || (questionTile && questionTile.word==='Do you' ? 'you' : 'I');
-  const time = tiles.find(t=>t.type==='time');
-  if(time){
-    tiles.filter(t=>t.type==='verb').forEach(v=>{
-      const k = v.id+'|'+time.word;
-      if(!state.chosenForms[k]) q.push({kind:'verb', key:k, verb:v, time, options:verbForms(v.word,time.word,subject)});
-    });
-  }
-  tiles.forEach((t,i)=>{
-    if(t.type==='thing'){
-      const req = linkRequirement(tiles,i);
-      if(req && !state.chosenLinks[req.key]) q.push({kind:'link', ...req});
-    }
-  });
-  tiles.forEach((t,i)=>{
-    if(t.type==='joiner'){
-      const k = joinerKey(t,i);
-      const opts = joinerForms(tiles,i);
-      if(opts.length && !state.chosenJoiners[k]) q.push({kind:'joiner', key:k, joiner:t, options:opts});
-    }
-  });
-  return q;
-}
-function pathHasBlank(text){ return /___/.test(text || ''); }
-function teacherLine(){ return state.japanese ? ' まだ分からない？先生に聞いてください。' : ' Still confused? Ask the teacher.'; }
-function sentenceData(){
-  const tiles = pathTiles();
-  if(state.chosenRewrite){
-    const text = state.chosenRewrite.replace(/[.]$/,'');
-    const analysis = analyse(tiles, text, false, true);
-    return {tiles,text,analysis,needsChoice:false,time:firstOfType(tiles,'time'),subject:null,hasQuestion:/[?]$/.test(state.chosenRewrite)};
-  }
-  const time = tiles.find(t=>t.type==='time');
-  const subject = tiles.find(t=>t.type==='who');
-  const hasQuestion = tiles.some(t=>t.type==='question') || isQuestionStarter(state.chosenSubject);
-  const firstQuestion = tiles.find(t=>t.type==='question');
-  const pending = choiceQueue();
-  const needsChoice = pending.length>0;
-  const words=[];
-  const shouldInsertSubject = !subject && !!state.chosenSubject;
-  let insertedSubject = false;
-  tiles.forEach((t,i)=>{
-    if(i===0 && t.type==='opinion'){
-      words.push(t.word);
-      if(shouldInsertSubject){ words.push(state.chosenSubject); insertedSubject = true; }
-      return;
-    }
-    if(i===0 && shouldInsertSubject && !insertedSubject){ words.push(state.chosenSubject); insertedSubject = true; }
-    if(t.type==='time') return;
-    if(t.type==='verb' && time){
-      const k = t.id+'|'+time.word;
-      words.push(state.chosenForms[k] || '___');
-    } else if(t.type==='joiner'){
-      const k = joinerKey(t,i);
-      const opts = joinerForms(tiles,i);
-      words.push(opts.length ? (state.chosenJoiners[k] || '___') : t.word);
-    } else if(t.type==='thing'){
-      const req = linkRequirement(tiles,i);
-      if(req){ words.push(state.chosenLinks[req.key] || '___'); }
-      words.push(t.word);
-    } else words.push(t.word);
-  });
-  let text = words.join(' ').replace(/\s+/g,' ').trim();
-  if(firstQuestion || isQuestionStarter(state.chosenSubject)){
-    if(!text.endsWith('?')) text = text + '?';
-  }
-  const analysis = analyse(tiles, text, needsChoice);
-  return {tiles,text,analysis,needsChoice,time,subject,hasQuestion};
-}
-function analyse(tiles,text,needsChoice=false,forceValid=false){
+  const text = state.chosenSentence;
+  if(!text) return {valid:false, hits:[]};
+  const lower = text.toLowerCase();
   const types = new Set(tiles.map(t=>t.type));
-  const words = new Set(tiles.map(t=>t.word));
-  const chosenQuestion = isQuestionStarter(state.chosenSubject) || /[?]$/.test(state.chosenRewrite || text || '');
-  const hasSubject = types.has('who') || (!!state.chosenSubject && !chosenQuestion) || forceValid;
-  const hasVerb = types.has('verb');
-  const hasQuestion = types.has('question') || chosenQuestion;
-  const hasThing = types.has('thing');
-  const hasDetail = types.has('detail');
-  const hasJoiner = types.has('joiner');
-  const hasDescribe = types.has('describe');
-  const hasOpinion = types.has('opinion');
-  const hasFuture = [...words].some(w=>['future','want to','can','should'].includes(w)) || /will|going to|want to|can|should/.test(text);
-  const mission = currentMission();
-  let valid = false;
-  let warning = '';
-  if(forceValid) valid = true;
-  else if(needsChoice) warning = 'Choose the missing grammar choices first.';
-  else if(tiles.length<2) warning = 'Try at least 2 connected tiles.';
-  else if(pathHasBlank(text)) warning = 'Choose the missing grammar choices first.';
-  else if(startsWithJoiner(tiles)) warning = 'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.';
-  else if(hasJoiner && tiles[tiles.length-1]?.type==='joiner') warning = 'A joiner needs another idea after it.';
-  else if(hasQuestion) valid = hasVerb || words.has('Do you');
-  else valid = hasSubject && hasVerb;
-  if(!valid && !warning){
-    if(!hasVerb) warning = hasQuestion ? 'A question needs an action word.' : 'This needs a Verb tile.';
-    else if(!hasSubject && !hasQuestion) warning = 'This needs a starter. Press Check sentence to choose one.';
-    else warning = 'This does not sound complete yet.';
-  }
   const hits = new Set();
-  if(valid){
-    if((mission.id==='food' && [...words].some(w=>mission.things.includes(w))) || (mission.id==='fukuoka' && [...words].some(w=>mission.things.includes(w))) || ['friends','school'].includes(mission.id)) hits.add('topic');
-    if(hasJoiner || ['because','but','so'].some(w=>words.has(w))) hits.add('reason');
-    if(hasQuestion) hits.add('question');
-    if(hasDetail) hits.add('detail');
-    if(hasDescribe) hits.add('describe');
-    if(hasOpinion) hits.add('opinion');
-    if(hasFuture) hits.add('future');
-  }
-  return {valid,warning,hits:[...hits],hasJoiner,hasQuestion,hasDetail,hasDescribe,hasOpinion,hasFuture};
+  if(types.has('verb') || types.has('thing')) hits.add('topic');
+  if(/\b(because|but|so)\b/.test(lower)) hits.add('reason');
+  if(/\?\s*$/.test(text)) hits.add('question');
+  if(/\b(will|going to|want to)\b/.test(lower)) hits.add('future');
+  if(types.has('detail')) hits.add('detail');
+  if(types.has('describe')) hits.add('describe');
+  if(/\b(i think|for me|maybe|really)\b/.test(lower)) hits.add('opinion');
+  return {valid:true, hits:[...hits]};
 }
 function scoreCurrent(){
-  const d = sentenceData();
-  if(d.needsChoice || !d.analysis.valid) return 0;
+  const a = analyseChosen();
+  if(!a.valid) return 0;
+  const tiles = pathTiles();
   let pts = 3;
-  pts += Math.max(0,d.tiles.length-3);
-  pts += d.analysis.hits.length ? 2 : 0;
-  if(d.analysis.hasJoiner) pts += 2;
-  if(d.analysis.hasQuestion) pts += 1;
+  pts += Math.max(0, tiles.length-3);
+  if(a.hits.length) pts += 2;
+  if(a.hits.includes('reason')) pts += 2;
   return pts;
 }
 function goalProgress(){
@@ -1095,15 +912,18 @@ function goalProgress(){
 }
 function missionComplete(){return goalProgress().every(g=>g.done);}
 function keepSentence(){
-  const d = sentenceData();
-  if(choiceQueue().length){ checkSentence(); return; }
-  if(!state.checked){ showToast(state.japanese?'先に文をチェックしてください。':'Check the sentence first.'); return; }
-  if(!d.analysis.valid){showToast(warningText(d.analysis.warning) || 'Not quite a sentence yet.');return;}
-  const text = formatSentence(d.text);
+  if(!state.chosenSentence){
+    if(pathBuildable()) openBuilder();
+    else showToast(state.japanese?'まず「文を作る」を押してください。':'Press Build sentence to choose a sentence first.');
+    return;
+  }
+  const a = analyseChosen();
+  const text = formatSentence(state.chosenSentence);
   const pts = scoreCurrent();
-  const item = {id:'s'+Date.now()+Math.random().toString(36).slice(2,5), text, pts, hits:d.analysis.hits, tiles:d.tiles.map(t=>({type:t.type,word:t.word})), mission:currentMission().topic};
-  state.bank.push(item); state.total += pts; state.path=[]; clearGrammarChoices(); state.checked=false;
-  showToast('Kept! +' + pts + ' points'); render(); save();
+  const tiles = pathTiles();
+  const item = {id:'s'+Date.now()+Math.random().toString(36).slice(2,5), text, pts, hits:a.hits, tiles:tiles.map(t=>({type:t.type,word:t.word})), mission:currentMission().topic};
+  state.bank.push(item); state.total += pts; state.path=[]; resetChoice();
+  showToast((state.japanese?'保存しました！ +':'Kept! +') + pts + (state.japanese?' 点':' points')); render(); save();
 }
 function formatSentence(text){
   text = text.replace(/\s+\?/g,'?').trim();
@@ -1125,50 +945,84 @@ function generatedQuestions(){
     const thing=(b.tiles||[]).find(t=>t.type==='thing');
     const verb=(b.tiles||[]).find(t=>t.type==='verb');
     const detail=(b.tiles||[]).find(t=>t.type==='detail');
-    if(thing && !seen.has('thing'+thing.word)){ qs.push({q:`What do you think about ${thing.word}?`, hint:'I think ___ because ___.'}); seen.add('thing'+thing.word); }
-    if(verb && thing && !seen.has('verbthing'+verb.word+thing.word)){ qs.push({q:`Do you ${verb.word} ${thing.word}?`, hint:'Yes, I do. / No, I don\'t. Why?'}); seen.add('verbthing'+verb.word+thing.word); }
-    if(detail && !seen.has('detail'+detail.word)){ qs.push({q:`What do you usually do ${detail.word}?`, hint:'I usually ___.'}); seen.add('detail'+detail.word); }
+    if(thing && !seen.has('t'+thing.word)){ qs.push({q:`What do you think about ${thing.word}?`, hint:'I think ___ because ___.'}); seen.add('t'+thing.word); }
+    if(verb && thing && !seen.has('vt'+verb.word+thing.word)){ qs.push({q:`Do you ${verb.word} ${thing.word}?`, hint:"Yes, I do. / No, I don't. Why?"}); seen.add('vt'+verb.word+thing.word); }
+    if(detail && !seen.has('d'+detail.word)){ qs.push({q:`What do you usually do ${detail.word}?`, hint:'I usually ___.'}); seen.add('d'+detail.word); }
   });
   const backup = [
     {q:`What ${topic} do you like?`, hint:'I like ___.'},
-    {q:`What do you want to try?`, hint:'I want to try ___ because ___.'},
+    {q:'What do you want to try?', hint:'I want to try ___ because ___.'},
     {q:'What about you?', hint:'Use this after your answer.'},
-    {q:'Why?', hint:'Answer with because ___.'},
-    {q:'Which sentence is the most interesting?', hint:'I choose ___ because ___.'}
+    {q:'Why?', hint:'Answer with because ___.'}
   ];
   return qs.concat(backup).slice(0,6);
 }
-function openFinale(){
+// Turn one kept sentence into a natural follow-up question + answer.
+function followUp(item){
+  const tiles=item.tiles||[];
+  const thing=(tiles.find(t=>t.type==='thing')||{}).word;
+  const verb=(tiles.find(t=>t.type==='verb')||{}).word;
+  const detail=(tiles.find(t=>t.type==='detail')||{}).word;
+  const desc=(tiles.find(t=>t.type==='describe')||{}).word;
+  if(/\?\s*$/.test(item.text||'')){
+    return {q:'Good question! Let me think.', a: thing?`I like ${thing}. What about you?`:'Yes, I think so. What about you?'};
+  }
+  if(thing && verb) return {q:`Really? Do you ${verb} ${thing} a lot?`, a:`Yes! ${detail?`Usually ${detail}.`:(desc?`It is ${desc}.`:'It is fun.')} What about you?`};
+  if(thing) return {q:`Oh, do you like ${thing}?`, a:`Yes, I think ${thing} ${isPlural(thing)?'are':'is'} ${desc||'great'}. What about you?`};
+  if(desc) return {q:`Why is it ${desc}?`, a:'Because it is interesting. What about you?'};
+  return {q:'Interesting! Tell me more.', a:'Sure! What about you?'};
+}
+// Weave the kept sentences into a back-and-forth A/B dialogue.
+function buildConversation(){
+  const items = shuffle(state.bank.slice()).slice(0,5);
+  const topic = currentMission().topic.toLowerCase();
+  const lines=[{who:'A', text:`Let's talk about ${topic}.`},{who:'B', text:'Sure! You go first.'}];
+  items.forEach((it,i)=>{
+    const speaker = i%2===0 ? 'A' : 'B';
+    const other = speaker==='A' ? 'B' : 'A';
+    const fu = followUp(it);
+    lines.push({who:speaker, text: it.text});
+    lines.push({who:other, text: fu.q});
+    lines.push({who:speaker, text: fu.a});
+  });
+  lines.push({who: items.length%2===0?'A':'B', text:'Me too! Thanks, that was a good talk.'});
+  return lines;
+}
+function renderFinale(){
   const cards=document.getElementById('finaleCards');
-  const sentences=state.bank.slice(-6);
+  const sentences=state.bank.slice();
   const q=generatedQuestions();
+  const convo=buildConversation();
+  const remixLabel = state.japanese ? '↻ 作り直す' : '↻ Remix';
   cards.innerHTML = `
     <div class="card">
-      <h3>Your sentence board</h3>
-      ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):'<p>No sentences yet. Keep at least one first.</p>'}
+      <h3>${state.japanese?'文ボード':'Your sentence board'}</h3>
+      ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):`<p>${state.japanese?'まだ文がありません。まず1つ保存しよう。':'No sentences yet. Keep at least one first.'}</p>`}
     </div>
     <div class="card">
-      <h3>Conversation script</h3>
+      <h3>${state.japanese?'会話':'Your conversation'} <button class="btn" id="remakeConvoBtn" style="float:right;min-height:30px;padding:4px 10px;font-size:12px;">${remixLabel}</button></h3>
       <div class="script-lines">
-        <div class="script-line">A: I choose this sentence: “_____.”</div>
-        <div class="script-line">B: ${escapeHTML(q[0]?.q || 'What about you?')}</div>
-        <div class="script-line">A: I think _____ because _____.</div>
-        <div class="script-line">B: Really? / Same here. Why?</div>
+        ${convo.map(l=>`<div class="script-line"><b style="color:${l.who==='A'?'var(--who)':'var(--thing)'}">${l.who}:</b> ${escapeHTML(l.text)}</div>`).join('')}
       </div>
     </div>
     <div class="card">
-      <h3>Ask these</h3>
+      <h3>${state.japanese?'これを聞こう':'Ask these'}</h3>
       <div class="question-list">${q.map(x=>`<div class="q-card"><b>${escapeHTML(x.q)}</b><div>${escapeHTML(x.hint)}</div></div>`).join('')}</div>
     </div>
     <div class="card">
-      <h3>Peer vote finale</h3>
-      <p>Each group reads their best sentence. Other groups ask one follow-up question. Vote for the most interesting sentence, not the longest one.</p>
+      <h3>${state.japanese?'みんなで投票':'Peer vote finale'}</h3>
+      <p>${state.japanese?'各グループが一番いい文を読む。他のグループは質問を1つ。一番おもしろい文に投票しよう（長さではなく内容で）。':'Each group reads their best sentence. Other groups ask one follow-up question. Vote for the most interesting sentence, not the longest one.'}</p>
       <ul>
-        <li>Interesting idea?</li>
-        <li>Natural English?</li>
-        <li>Good follow-up answer?</li>
+        <li>${state.japanese?'おもしろい考え？':'Interesting idea?'}</li>
+        <li>${state.japanese?'自然な英語？':'Natural English?'}</li>
+        <li>${state.japanese?'いい受け答え？':'Good follow-up answer?'}</li>
       </ul>
     </div>`;
+  const remake=document.getElementById('remakeConvoBtn');
+  if(remake) remake.addEventListener('click',renderFinale);
+}
+function openFinale(){
+  renderFinale();
   document.getElementById('finaleOverlay').classList.add('open');
 }
 function render(){
@@ -1205,155 +1059,78 @@ function renderBoard(){
 function renderPath(){
   const tiles = pathTiles();
   const row=document.getElementById('pathRow');
-  if(!tiles.length){row.innerHTML='<span class="path-empty">Tap tiles to build a sentence path…</span>';} 
+  if(!tiles.length){row.innerHTML=`<span class="path-empty">${state.japanese?'となり合うタイルをタップして文を作ろう…':'Tap touching tiles to build a sentence path…'}</span>`;}
   else row.innerHTML = tiles.map(t=>`<div class="chip" data-type="${t.type}"><span class="chip-tag">${TYPES[t.type].label}</span><span class="chip-word">${escapeHTML(t.word)}</span></div>`).join('');
-  renderChoices(tiles);
-  const d = sentenceData();
+  const buildable = pathBuildable();
+  renderChoices(tiles, buildable);
   const p=document.getElementById('preview');
-  p.innerHTML = d.text ? escapeHTML(formatSentence(d.text)) : '<span class="hint">Your sentence appears here.</span>';
-  document.getElementById('warnings').textContent = d.analysis.valid ? '' : warningText(d.analysis.warning || '');
+  if(state.chosenSentence){
+    p.innerHTML = escapeHTML(formatSentence(state.chosenSentence));
+  } else if(tiles.length){
+    p.innerHTML = `<span class="hint">${buildable ? (state.japanese?'「文を作る」を押して、自然な文を選ぼう。':'Press Build sentence to choose the natural version.') : (state.japanese?'動詞（Verb）を足すと文になります。':'Add a Verb tile to make a sentence.')}</span>`;
+  } else {
+    p.innerHTML = `<span class="hint">${state.japanese?'ここに文が出ます。':'Your sentence appears here.'}</span>`;
+  }
+  document.getElementById('warnings').textContent = '';
   document.getElementById('liveScore').textContent=scoreCurrent();
-  document.getElementById('keepBtn').disabled=!d.analysis.valid || choiceQueue().length>0 || !state.checked;
+  document.getElementById('keepBtn').disabled=!state.chosenSentence;
+  document.getElementById('checkBtn').disabled=!buildable;
 }
-function renderChoices(tiles){
+function renderChoices(tiles, buildable){
   const wrap=document.getElementById('choices');
-  const pending = choiceQueue();
   if(!tiles.length){ wrap.innerHTML=''; return; }
-  if(!pending.length){
-    wrap.innerHTML = state.checked ? `<span class="fix-hint">${state.japanese?'確認OK。自然なら保存できます。':'Checked. If it sounds natural, keep it.'}</span>` : `<span class="fix-hint">${state.japanese?'「文をチェック」を押してから保存。':'Press Check sentence before keeping it.'}</span>`;
+  if(state.chosenSentence){
+    wrap.innerHTML = `<div class="fix-row"><span class="fix-hint">${state.japanese?'この文でOK？保存するか、別の文を選べます。':'Happy with it? Keep it, or pick a different sentence.'}</span><button class="choice action" id="openChoicesBtn">${state.japanese?'別の文にする':'Change sentence'}</button></div>`;
+    document.getElementById('openChoicesBtn').addEventListener('click',openBuilder);
     return;
   }
-  const first = pending[0];
-  const labelMap = {
-    rewrite: state.japanese ? '自然な形を選ぶ' : 'Choose a natural sentence',
-    subject: state.japanese ? '主語を足す' : 'Add a subject',
-    verb: state.japanese ? '時制を変える' : 'Change the tense',
-    link: state.japanese ? 'つなぐ言葉を足す' : 'Add a link word',
-    joiner: state.japanese ? 'つなぎ言葉を直す' : 'Fix the connector'
-  };
-  const hintMap = {
-    rewrite: state.japanese ? 'この並びは自然な文に直せます。' : 'This path can become a natural sentence/question.',
-    subject: state.japanese ? 'Who がないので、主語を選びます。' : 'This can work, but it needs a subject.',
-    verb: state.japanese ? '動詞の形を選んでください。' : 'Choose a verb form.',
-    link: state.japanese ? '場所の前に at / in / to などが必要かもしれません。' : 'This place probably needs at / in / to before it.',
-    joiner: state.japanese ? 'because / but / so の後を自然にします。' : 'Make the words after because / but / so sound natural.'
-  };
-  wrap.innerHTML = `<div class="fix-row"><span class="fix-hint">${hintMap[first.kind]}</span><button class="choice action" id="openChoicesBtn">${labelMap[first.kind]}</button></div>`;
-  document.getElementById('openChoicesBtn').addEventListener('click',()=>openChoice(first));
-}
-function warningText(w){
-  if(!w) return '';
-  const en = {
-    'Choose a verb form first.':'Choose a verb form first.',
-    'Try at least 3 connected tiles.':'Try at least 3 connected tiles.',
-    'Try at least 2 connected tiles.':'Try at least 2 connected tiles.',
-    'A question needs an action word.':'A question needs an action word.',
-    'A sentence needs Who + Verb.':'A sentence needs Who + Verb.',
-    'Choose the missing grammar choices first.':'Choose the missing grammar choices first.',
-    'This needs a Verb tile.':'This needs a Verb tile.',
-    'This needs a subject. Press Check sentence to choose one.':'This needs a subject. Press Check sentence to choose one.',
-    'This needs a starter. Press Check sentence to choose one.':'This needs a starter. Press Check sentence to choose one.',
-    'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.':'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.',
-    'A joiner needs another idea after it.':'A joiner needs another idea after it.',
-    'This does not sound complete yet.':'This does not sound complete yet.'
-  };
-  const jp = {
-    'Choose a verb form first.':'先に動詞の形を選んでください。',
-    'Try at least 3 connected tiles.':'3つ以上のつながったタイルを使ってください。',
-    'Try at least 2 connected tiles.':'2つ以上のつながったタイルを使ってください。',
-    'A question needs an action word.':'質問には動詞が必要です。',
-    'A sentence needs Who + Verb.':'文には Who + Verb が必要です。',
-    'Choose the missing grammar choices first.':'先に文法の選択をしてください。',
-    'This needs a Verb tile.':'Verb タイルが必要です。',
-    'This needs a subject. Press Check sentence to choose one.':'主語が必要です。「文をチェック」で選べます。',
-    'This needs a starter. Press Check sentence to choose one.':'文の始まりが必要です。「文をチェック」で選べます。',
-    'A joiner cannot start by itself. Put it after a complete idea, or add another idea after it.':'if / because / but だけで始めると文が途中になります。先に考えを1つ作るか、後ろにもう1つ考えを足します。',
-    'A joiner needs another idea after it.':'つなぐ言葉の後に、もう1つ考えが必要です。',
-    'This does not sound complete yet.':'まだ文が完成していません。'
-  };
-  const base = state.japanese ? (jp[w] || w) : (en[w] || w);
-  return base + teacherLine();
+  if(buildable){
+    wrap.innerHTML = `<div class="fix-row"><span class="fix-hint">${state.japanese?'この並びから自然な文が作れます。':'These tiles can make a natural sentence.'}</span><button class="choice action" id="openChoicesBtn">${state.japanese?'文を作る':'Build sentence'}</button></div>`;
+    document.getElementById('openChoicesBtn').addEventListener('click',openBuilder);
+    return;
+  }
+  wrap.innerHTML = `<span class="fix-hint">${state.japanese?'動詞（Verb）か「もの＋様子」を入れると文になります。':'Add a Verb tile, or a Thing + Describe, to make a sentence.'}</span>`;
 }
 function renderLanguage(){
   document.getElementById('jpToggleBtn').textContent = state.japanese ? '日本語 ON' : '日本語 OFF';
   document.getElementById('guideBtn').innerHTML = state.japanese ? 'Guide <span class="jp">ガイド</span>' : 'Guide';
   document.getElementById('resetBtn').textContent = state.japanese ? 'リセット' : 'Reset';
-  document.getElementById('boardHint').textContent = state.japanese ? '自然な英文になるように、つながったタイルを探そう。' : 'Find a connected path that makes natural English.';
+  document.getElementById('boardHint').textContent = state.japanese ? 'となり合うタイルをつなげて、「文を作る」で自然な文を選ぼう。' : 'Connect touching tiles, then press Build sentence to choose the natural version.';
   document.getElementById('rulesCard').innerHTML = state.japanese
-    ? '<b>ルール:</b> Boggleのように、となり合うタイルをタップします。交換は<b>2回だけ</b>。ミッションが全部緑になったら会話ファイナル。'
-    : '<b>Rule:</b> Tap connected tiles like Boggle. Your next tile must touch the last one. You get <b>2 swaps</b>, not unlimited rerolls. When all mission goals are green, do the conversation finale.';
+    ? '<b>ルール:</b> Boggleのように、となり合うタイルをタップ。次のタイルは前のタイルにふれていること。<b>「文を作る」</b>を押すと、その並びから作れる自然な文を選べます。交換は<b>2回だけ</b>。ミッションが全部緑になったら会話ファイナル。'
+    : '<b>Rule:</b> Tap connected tiles like Boggle — each new tile must touch the last one. Press <b>Build sentence</b> and pick the natural version your tiles can make. You get <b>2 swaps</b>, not unlimited rerolls. When all mission goals are green, do the conversation finale.';
   document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒント' : 'Nudge hint';
   document.getElementById('swapBtn').textContent = state.swapMode ? (state.japanese?'交換するタイルをタップ':'Tap tile to swap') : (state.japanese?'1枚交換':'Swap 1 tile');
   document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
   document.getElementById('clearBtn').textContent = state.japanese ? '消す' : 'Clear path';
-  document.getElementById('checkBtn').textContent = state.japanese ? '文をチェック' : 'Check sentence';
+  document.getElementById('checkBtn').textContent = state.japanese ? '文を作る' : 'Build sentence';
   document.getElementById('keepBtn').textContent = state.japanese ? '文を保存' : 'Keep sentence';
   document.getElementById('finaleBtn').textContent = state.japanese ? '会話へ →' : 'Finale →';
 }
-function openChoice(item){
-  if(!item) return;
-  activeChoice = item;
-  const overlay = document.getElementById('choiceOverlay');
-  const title = document.getElementById('choiceTitle');
-  const lead = document.getElementById('choiceLead');
-  const context = document.getElementById('choiceContext');
+let activeOptions=[];
+function openBuilder(){
+  const options = buildSentenceOptions();
+  if(!options.length){
+    showToast(state.japanese?'まだ文になりません。動詞や「もの」を足そう。':'Not a sentence yet. Add a Verb, or a Thing + Describe.');
+    return;
+  }
+  activeOptions = options;
+  document.getElementById('choiceTitle').textContent = state.japanese ? '文を選ぶ' : 'Choose your sentence';
+  document.getElementById('choiceLead').textContent = state.japanese ? 'タイルから作れる自然な文・質問です。言いたいものを選ぼう。' : 'These are natural sentences your tiles can make. Tap the one you mean.';
+  document.getElementById('choiceHelpJP').textContent = state.japanese ? 'ヒント：「?」で終わるものは質問。過去・未来の形も選べます。' : 'Tip: options ending in ? are questions. Past and future forms are offered too.';
+  document.getElementById('choiceContext').textContent = pathTiles().map(t=>t.word).join(' → ');
   const opts = document.getElementById('choiceOptions');
-  const help = document.getElementById('choiceHelpJP');
-  const d = sentenceData();
-  if(item.kind==='rewrite'){
-    title.textContent = state.japanese ? '自然な形を選ぶ' : 'Choose a natural sentence';
-    lead.textContent = state.japanese ? 'タイルの意味を使って、自然な文・質問を選びます。' : 'Use the tiles, but choose the sentence/question that sounds natural.';
-    help.textContent = state.japanese ? 'そのまま並べるより、英語では do / did / can / should などが必要な時があります。' : '';
-  } else if(item.kind==='subject'){
-    title.textContent = state.japanese ? '主語を足す' : 'Add a subject';
-    lead.textContent = state.japanese ? 'Who がなくても大丈夫。自然な主語を選びます。' : 'This can be correct; choose who is doing the action.';
-    help.textContent = state.japanese ? '例：should meet at a cafe → We should meet at a cafe.' : '';
-  } else if(item.kind==='verb'){
-    title.textContent = state.japanese ? '時制を変える' : 'Change the tense';
-    lead.textContent = state.japanese ? 'この文に合う動詞の形を選びます。' : 'Choose the verb form that fits this sentence.';
-    help.textContent = state.japanese ? 'ヒント：「past」は過去、「future」は will / going to、「can / should」は動詞の前。' : '';
-  } else if(item.kind==='link'){
-    title.textContent = state.japanese ? 'つなぐ言葉を足す' : 'Add a link word';
-    lead.textContent = state.japanese ? '場所や相手の前に at / in / to / with などを入れます。' : 'Choose the small word that connects the verb to the place/person.';
-    help.textContent = state.japanese ? '例：meet a cafe → meet at a cafe' : '';
-  } else {
-    title.textContent = state.japanese ? 'つなぎ言葉を直す' : 'Fix the connector';
-    lead.textContent = state.japanese ? 'because / but / so の後ろが自然になる形を選びます。' : 'Choose the phrase that makes the words after the connector sound natural.';
-    help.textContent = state.japanese ? '例：because important → because it is important' : '';
-  }
-  context.textContent = item.kind==='rewrite' ? pathTiles().map(t=>t.word).join(' → ') : formatSentence(d.text || pathTiles().map(t=>t.word).join(' '));
-  opts.innerHTML = item.options.map(o=>`<button class="option-btn" data-option="${escapeHTML(optionValue(o))}">${escapeHTML(optionLabel(o))}</button>`).join('');
-  opts.querySelectorAll('.option-btn').forEach(btn=>btn.addEventListener('click',()=>selectChoice(btn.dataset.option)));
-  overlay.classList.add('open');
+  opts.innerHTML = activeOptions.map(o=>`<button class="option-btn" data-option="${escapeHTML(optionValue(o))}">${escapeHTML(optionLabel(o))}</button>`).join('');
+  opts.querySelectorAll('.option-btn').forEach(btn=>btn.addEventListener('click',()=>selectSentence(btn.dataset.option)));
+  document.getElementById('choiceOverlay').classList.add('open');
 }
-let activeChoice=null;
-function selectChoice(value){
-  if(!activeChoice) return;
-  if(activeChoice.kind==='rewrite') state.chosenRewrite=value.replace(/[.]$/,'');
-  else if(activeChoice.kind==='subject') state.chosenSubject=value;
-  else if(activeChoice.kind==='verb') state.chosenForms[activeChoice.key]=value;
-  else if(activeChoice.kind==='link') state.chosenLinks[activeChoice.key]=value;
-  else if(activeChoice.kind==='joiner') state.chosenJoiners[activeChoice.key]=value;
-  activeChoice=null;
+function selectSentence(value){
+  state.chosenSentence = value;
+  document.getElementById('choiceOverlay').classList.remove('open');
   render(); save();
-  const next = choiceQueue()[0];
-  if(next) setTimeout(()=>openChoice(next),80);
-  else {
-    document.getElementById('choiceOverlay').classList.remove('open');
-    state.checked=true;
-    render();
-    const d=sentenceData();
-    showToast(d.analysis.valid ? (state.japanese?'チェックOK！':'Checked!') : warningText(d.analysis.warning));
-  }
+  showToast(state.japanese?'文ができました！保存できます。':'Sentence ready! You can keep it now.');
 }
-function checkSentence(){
-  state.checked=true;
-  const next = choiceQueue()[0];
-  if(next){ openChoice(next); render(); save(); return; }
-  const d = sentenceData();
-  showToast(d.analysis.valid ? (state.japanese?'いい感じ！自然なら保存しよう。':'Looks good. If it sounds natural, keep it.') : warningText(d.analysis.warning));
-  render(); save();
-}
+function buildSentence(){ openBuilder(); }
 function renderBank(){
   document.getElementById('bankCount').textContent=state.bank.length;
   const list=document.getElementById('bankList');
@@ -1371,39 +1148,28 @@ function renderLegend(){
 }
 function nudgeHint(){
   const tiles = pathTiles();
-  const d = sentenceData();
-  const pending = choiceQueue();
   if(!tiles.length){
-    showToast(state.japanese ? 'まず Who か Question から始めると作りやすいです。' : 'Try starting with Who or Question, then find a Verb touching it.');
+    showToast(state.japanese ? 'まず Who か Verb から始めて、となりの Thing につなげよう。' : 'Start with a Who or Verb tile, then connect a Thing next to it.');
     return;
   }
-  if(pending.length){
-    const k = pending[0].kind;
-    const msg = {
-      rewrite: state.japanese ? '自然な文や質問に直せます。「文をチェック」を押そう。' : 'This can become a natural sentence/question. Press Check sentence.',
-      subject: state.japanese ? '主語が足せます。「文をチェック」を押して選ぼう。' : 'This can work. Press Check sentence to add a subject.',
-      verb: state.japanese ? '時制の選択が必要です。「文をチェック」。' : 'This needs a tense choice. Press Check sentence.',
-      link: state.japanese ? '場所の前に at / in / to が必要かも。「文をチェック」。' : 'This probably needs at / in / to before the place. Press Check sentence.',
-      joiner: state.japanese ? 'because などの後ろを自然にできます。「文をチェック」。' : 'The connector needs a small fix. Press Check sentence.'
-    }[k];
-    showToast(msg);
+  if(state.chosenSentence){
+    showToast(state.japanese ? 'いい文です！自然に聞こえたら保存しよう。' : 'Nice sentence! If it sounds natural, keep it.');
     return;
   }
-  if(d.analysis.valid){
-    showToast(state.japanese ? 'OKです。自然に聞こえたら保存！' : 'This is checkable. If it sounds natural, keep it!');
+  if(pathBuildable()){
+    showToast(state.japanese ? '「文を作る」を押すと、自然な文を選べます。' : 'Press Build sentence to choose the natural version.');
     return;
   }
   const types = new Set(tiles.map(t=>t.type));
   const last = tiles[tiles.length-1];
   let wanted = [];
   if(!types.has('verb')) wanted = ['verb'];
-  else if(!types.has('who') && !types.has('question')) wanted = ['who'];
   else if(!types.has('thing') && !types.has('describe') && !types.has('detail')) wanted = ['thing','detail','describe'];
   else wanted = allowedAfter(last.type || 'verb');
   const neighbors = state.board.filter(t=>!state.path.includes(t.id) && adjacent(last,t) && wanted.includes(t.type));
   if(neighbors.length){
     neighbors.slice(0,3).forEach(t=>flashTile(t.id));
-    showToast(state.japanese ? `${TYPES[neighbors[0].type].label} の近くのタイルを見て。` : `Try the nearby ${TYPES[neighbors[0].type].label} tile.`);
+    showToast(state.japanese ? `近くの ${TYPES[neighbors[0].type].label} タイルを試してみて。` : `Try the nearby ${TYPES[neighbors[0].type].label} tile.`);
   } else {
     showToast(state.japanese ? '近くにいいタイルがなければ、1枚交換を使ってOK。' : 'No good nearby tile? Use one swap to rescue the path.');
   }
@@ -1412,16 +1178,16 @@ function showToast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(window.toastTimer); window.toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
 }
-document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast('New mission!');render();});
+document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast(state.japanese?'新しいミッション！':'New mission!');render();});
 document.getElementById('nudgeBtn').addEventListener('click',nudgeHint);
 document.getElementById('swapBtn').addEventListener('click',()=>{ if(state.swaps<=0){showToast(state.japanese?'交換はもうありません。':'No swaps left.');return;} state.swapMode=!state.swapMode; render(); });
-document.getElementById('clearBtn').addEventListener('click',()=>{state.path=[];state.chosenForms={};state.chosenJoiners={};state.chosenLinks={};state.chosenSubject=null;state.checked=false;render();});
-document.getElementById('checkBtn').addEventListener('click',checkSentence);
+document.getElementById('clearBtn').addEventListener('click',()=>{state.path=[];resetChoice();render();});
+document.getElementById('checkBtn').addEventListener('click',buildSentence);
 document.getElementById('jpToggleBtn').addEventListener('click',()=>{state.japanese=!state.japanese;render();});
 document.getElementById('keepBtn').addEventListener('click',keepSentence);
 document.getElementById('finaleBtn').addEventListener('click',openFinale);
 document.getElementById('guideBtn').addEventListener('click',()=>document.getElementById('guideOverlay').classList.add('open'));
-document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenForms:{},chosenJoiners:{},chosenLinks:{},chosenSubject:null,chosenRewrite:null,japanese:false,checked:false,createdAt:Date.now()};newBoard(false);render();showToast('Local session reset.');});
+document.getElementById('resetBtn').addEventListener('click',()=>{localStorage.removeItem(STORAGE_KEY);state={missionIndex:0,board:[],path:[],bank:[],total:0,swaps:2,swapMode:false,votedId:null,chosenSentence:null,japanese:false,createdAt:Date.now()};newBoard(false);render();showToast(state.japanese?'セッションをリセットしました。':'Local session reset.');});
 document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>document.getElementById(btn.dataset.close).classList.remove('open')));
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 renderLegend();
