@@ -62,9 +62,9 @@
     justify-content:space-between;
     gap:12px;
   }
-  .brand{display:flex;align-items:flex-end;gap:10px;white-space:nowrap;}
+  .brand{display:flex;align-items:flex-end;gap:10px;white-space:normal;flex-wrap:wrap;min-width:0;}
   h1{font-size:clamp(18px,2vw,24px);line-height:1;margin:0;font-weight:900;letter-spacing:-.04em;}
-  .subtitle{font-size:13px;color:var(--muted);font-weight:650;margin-bottom:1px;}
+  .subtitle{font-size:clamp(10px,1vw,12px);line-height:1.25;color:var(--muted);font-weight:650;margin-bottom:1px;max-width:720px;}
   .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
   .pill{
     border:1.5px solid var(--line);
@@ -311,6 +311,19 @@
   .option-en{line-height:1.16;}
   .option-jp{font-size:13px;line-height:1.3;color:var(--muted);font-weight:800;margin-top:7px;padding-top:7px;border-top:1px solid var(--line);}
   .modal-help-jp{font-size:14px;color:var(--muted);font-weight:800;margin-top:12px;line-height:1.35;}
+  .next-ready-modal{max-width:460px;padding:16px;background:var(--paper);}
+  .next-ready-btn{width:100%;min-height:58px;font-size:18px;}
+  .finale-modal{width:min(1120px,100%);}
+  .finale-language-toggle{min-height:34px;padding:6px 10px;font-size:12px;}
+  .finale-layout{display:grid;grid-template-columns:minmax(260px,.78fr) minmax(0,1.45fr);gap:12px;align-items:start;}
+  .finale-left{display:flex;flex-direction:column;gap:12px;}
+  .finale-instructions{background:var(--paper-2);}
+  .instruction-list{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px;}
+  .instruction-list li{font-size:16px;line-height:1.35;font-weight:850;color:var(--ink);}
+  .instruction-list small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.3;font-weight:750;}
+  .sentence-card{font-size:12px;}
+  .sentence-card p{font-size:12px;margin:0 0 6px;line-height:1.25;}
+  .conversation-card{min-width:0;}
   .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;border-radius:14px;padding:12px 18px;font-weight:850;opacity:0;pointer-events:none;transition:all .2s ease;z-index:100;box-shadow:var(--shadow);}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .intro-modal{max-width:560px;}
@@ -358,6 +371,10 @@
     .build-actions{min-width:0;display:grid;grid-template-columns:1fr 1fr;}
     .choice-grid{grid-template-columns:1fr;}
     .cards{grid-template-columns:1fr;}
+    .finale-layout{grid-template-columns:1fr;}
+    .finale-modal{padding:16px;}
+    .finale-modal .modal-head{align-items:center;}
+    .instruction-list li{font-size:14px;}
     .board-head{padding:7px 8px;}
     .board-title b{font-size:13px;}
     .board-title span{font-size:10px;}
@@ -405,7 +422,7 @@
   <header>
     <div class="brand">
       <h1>Sentence Quest Boggle</h1>
-      <div class="subtitle jp">ミッション → 文 → 会話</div>
+      <div class="subtitle" id="processSubtitle">Make sentences → Complete at least 1 quest → Conversation → Make corrections → Have the conversation again!</div>
     </div>
     <div class="top-actions">
       <button class="btn" id="jpToggleBtn">日本語 OFF</button>
@@ -419,9 +436,9 @@
   <main class="main">
     <section class="panel mission-panel">
       <div>
-        <div class="eyebrow">Mission Card</div>
+        <div class="eyebrow" id="questBoardLabel">Quest Board</div>
         <div class="mission-topic" id="missionTopic">Topic</div> <span class="mode-badge" id="modeBadge">PASSAGE</span>
-        <h2 class="mission-title" id="missionTitle">Mission</h2>
+        <h2 class="mission-title" id="missionTitle">Quest</h2>
         <p class="mission-text" id="missionText">Build sentences, then use them to talk.</p>
       </div>
       <div>
@@ -444,7 +461,7 @@
           <button class="btn" id="nudgeBtn">Give me a hint</button>
           <button class="btn" id="swapBtn">Swap tile · 8</button>
           <button class="btn" id="newTilesBtn">New tiles</button>
-          <button class="btn primary" id="newMissionBtn">New mission</button>
+          <button class="btn primary" id="newMissionBtn">New quest</button>
         </div>
       </div>
       <div class="board-wrap">
@@ -468,7 +485,7 @@
           <button class="btn" id="clearBtn">Clear</button>
           <button class="btn primary" id="checkBtn">Build sentence</button>
           <button class="btn green" id="keepBtn" disabled>Keep sentence</button>
-          <button class="btn red" id="finaleBtn" disabled>Finale →</button>
+          <button class="btn red" id="finaleBtn" disabled>Next →</button>
         </div>
       </div>
     </section>
@@ -493,16 +510,25 @@
   </div>
 </div>
 
+<div class="overlay" id="nextReadyOverlay">
+  <div class="modal next-ready-modal">
+    <button class="btn primary next-ready-btn" id="nextReadyBtn">→ Move to the next step</button>
+  </div>
+</div>
+
 <div class="overlay" id="finaleOverlay">
-  <div class="modal">
+  <div class="modal finale-modal">
     <div class="modal-head">
       <div>
-        <h2>Conversation Finale</h2>
-        <p class="lead jp">作った文を使って、最後は本当に会話する。</p>
+        <h2 id="finaleTitle">会話と文の直し方</h2>
+        <p class="lead" id="finaleLead">次のステップに進もう。</p>
       </div>
-      <button class="close" data-close="finaleOverlay">×</button>
+      <div class="modal-head-actions">
+        <button class="btn finale-language-toggle" id="finaleLanguageBtn">英語・日本語</button>
+        <button class="close" data-close="finaleOverlay">×</button>
+      </div>
     </div>
-    <div class="cards" id="finaleCards"></div>
+    <div id="finaleCards"></div>
   </div>
 </div>
 
@@ -522,7 +548,7 @@
           <li><b>Pointer:</b> finds useful words on the board.</li>
           <li><b>Tapper:</b> taps the words (can stay quiet).</li>
           <li><b>Coach:</b> picks the sentence that sounds natural.</li>
-          <li><b>Speaker:</b> reads it in the finale.</li>
+          <li><b>Speaker:</b> reads it in the conversation step.</li>
         </ul>
       </div>
       <div class="card">
@@ -541,8 +567,8 @@
       </div>
       <div class="card">
         <h3>Teacher note</h3>
-        <p>No adjacency rule: students tap <b>any</b> words in any order, then press <b>Build sentence</b> and choose from a few <b>fully natural</b> sentences/questions. Used words grey out, so they spread across the board. Finale unlocks at <b>3+ sentences and 1 goal</b> — not all goals. Use <b>New tiles</b> for a fresh board, <b>New mission</b> for a new topic. Resize the board by editing <code>BOARD_COLS</code> / <code>BOARD_ROWS</code>.</p>
-        <p class="jp">となりのルールなし。言葉をタップ →「文を作る」→ 文を選ぶ → 保存。3文＋ゴール1つでファイナル。</p>
+        <p>No adjacency rule: students tap <b>any</b> words in any order, then press <b>Build sentence</b> and choose from a few natural sentences/questions. Used words grey out, so they spread across the board. <b>Next</b> unlocks at <b>3+ sentences and 1 quest</b>. Use <b>New tiles</b> for a fresh board and <b>New quest</b> for a new topic.</p>
+        <p class="jp">となりのルールなし。言葉をタップ →「文を作る」→ 文を選ぶ → 保存。3文＋クエスト1つで「次へ」。</p>
       </div>
     </div>
   </div>
@@ -957,6 +983,7 @@ function naturalVerbObject(verb,noun){
 }
 function naturalPersonObject(verb){return ['meet','talk','help','play','listen','laugh','visit'].includes(verb);}
 const REQUIRES_OBJECT=new Set(['like','want','make','buy','share','choose','watch','visit','join','talk about','use','become','see','take']);
+const INFINITIVE_COMPLEMENT_VERBS=new Set(['want','try','like','learn']);
 function naturalThingDescription(noun,desc){
   const id=currentMission().id;
   if(id==='food' && ['favorite','new'].includes(desc)) return false;
@@ -1067,6 +1094,18 @@ function translateSimpleJapanese(text,tiles,plain=false){
     return plain?core:core+'です'+(text.trim().endsWith('?')?'か？':'。');
   }
   if(!verbs.length) return '';
+  if(verbs.length>1&&INFINITIVE_COMPLEMENT_VERBS.has(verbs[0].word)){
+    const target=jpAction(verbs[1].word,objectWord,objectSource);
+    const isQuestion=text.trim().endsWith('?');
+    const past=/wanted to|tried to|liked to|learned to/i.test(clean);
+    let predicate='',ending='です';
+    if(verbs[0].word==='want') predicate=target.stem+(past?'たかった':'たい');
+    else if(verbs[0].word==='like') predicate=target.plain+'のが好き';
+    else if(verbs[0].word==='learn'){predicate=target.plain+'ことを学び';ending=past?'ました':'ます';}
+    else{predicate=target.plain+'ことを試み';ending=past?'ました':'ます';}
+    if(plain) return subject.replace('は','が')+detail+predicate;
+    return subject+detail+predicate+ending+(isQuestion?'か？':'。');
+  }
   if(verbs.length===1&&verbs[0].word==='like'){
     const core=subject+detail+jpObject('like',objectWord)+(JP_VERB.like[0]);
     return plain?core:core+'です'+(text.trim().endsWith('?')?'か？':'。');
@@ -1143,9 +1182,10 @@ function simpleClause(tiles, subject, opts){
   if(verbTile){
     const base = verbTile.word;
     const govVerb = (secondVerb || verbTile).word; // verb that governs the object
+    const objectVerbs=secondVerb&&INFINITIVE_COMPLEMENT_VERBS.has(base)?[secondVerb]:verbs;
     if(!objects.length&&verbs.some(v=>REQUIRES_OBJECT.has(v.word))) return '';
-    if(objects.some(o=>o.type==='thing' && verbs.some(v=>!naturalVerbObject(v.word,o.sourceWord||o.word)))) return '';
-    if(objects.some(o=>o.type==='who' && verbs.some(v=>!naturalPersonObject(v.word)))) return '';
+    if(objects.some(o=>o.type==='thing' && objectVerbs.some(v=>!naturalVerbObject(v.word,o.sourceWord||o.word)))) return '';
+    if(objects.some(o=>o.type==='who' && objectVerbs.some(v=>!naturalPersonObject(v.word)))) return '';
     if(describes.length && !objects.length) return '';
     if(describes.length && objects.some(o=>o.type==='thing' && !naturalThingDescription(o.sourceWord||o.word,describes[0].word))) return '';
     const parts = [];
@@ -1163,7 +1203,8 @@ function simpleClause(tiles, subject, opts){
     // Serial second verb. When both verbs share one object, keep each verb's
     // required link: "listen to and talk with my friends."
     if(secondVerb){
-      if(base==='go' || base==='come') parts.push(modal ? secondVerb.word : 'to', modal ? '' : secondVerb.word);
+      if(INFINITIVE_COMPLEMENT_VERBS.has(base)) parts.push('to',secondVerb.word);
+      else if(base==='go' || base==='come') parts.push(modal ? secondVerb.word : 'to', modal ? '' : secondVerb.word);
       else{
         const sharedObject=objects[0];
         const firstLink=sharedObject ? autoLinkOptionsFor(base,sharedObject.sourceWord||sharedObject.word)[0] : '';
@@ -1355,6 +1396,7 @@ function keepSentence(){
     else showToast(state.japanese?'まず「文を作る」を押してください。':'Press Build sentence to choose a sentence first.');
     return;
   }
+  const wasUnlocked=finaleUnlocked();
   const a = analyseChosen();
   const text = formatSentence(state.chosenSentence);
   const pts = scoreCurrent();
@@ -1365,6 +1407,7 @@ function keepSentence(){
   state.bank.push(item); state.total += pts; state.path=[]; resetChoice();
   showToast((state.japanese?'保存しました！ +':'Kept! +') + pts + (state.japanese?' 点':' pts'));
   render(); save();
+  if(!wasUnlocked&&finaleUnlocked()) setTimeout(openNextReady,450);
   if(boardExhausted()) setTimeout(()=>showToast(state.japanese?'タイルが少なくなりました。「新しいタイル」を押そう。':'Running low on tiles. Press New tiles for a fresh board.'), 1700);
 }
 function formatSentence(text){
@@ -1466,42 +1509,53 @@ function buildConversation(){
   lines.push({who: lastWho==='A' ? 'B' : 'A', text:rand(closers)});
   return lines;
 }
+let finaleJapanese=true;
 function renderFinale(){
   const cards=document.getElementById('finaleCards');
   const sentences=state.bank.slice();
-  const q=generatedQuestions();
   const convo=buildConversation();
-  const remixLabel = state.japanese ? '↻ 作り直す' : '↻ Remix';
+  const instructions=finaleJapanese ? [
+    'パートナーと会話しよう。自然に聞こえる？英語は正しい？',
+    '会話を書き出して、直そう。文をもっと自然で正しい英語に書き直そう。',
+    '会話を1つ完成させて、Kayson先生に提出しよう。ベストを尽くそう！'
+  ] : [
+    'Have the conversation with a partner. Does it sound natural? Is it correct?',
+    'Write it down and make corrections. Rewrite the sentences to sound more natural and correct.',
+    'Finish one conversation and give it to Kayson. Try your best!'
+  ];
+  document.getElementById('finaleTitle').textContent=finaleJapanese?'会話と文の直し方':'Conversation and Corrections';
+  document.getElementById('finaleLead').textContent=finaleJapanese?'次のステップに進もう。':'Move through these final steps.';
+  document.getElementById('finaleLanguageBtn').innerHTML=finaleJapanese?'<b>日本語</b>・英語':'日本語・<b>英語</b>';
   cards.innerHTML = `
-    <div class="card">
-      <h3>${state.japanese?'文ボード':'Your sentence board'}</h3>
-      ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):`<p>${state.japanese?'まだ文がありません。まず1つ保存しよう。':'No sentences yet. Keep at least one first.'}</p>`}
-    </div>
-    <div class="card">
-      <h3>${state.japanese?'会話':'Your conversation'} <button class="btn" id="remakeConvoBtn" style="float:right;min-height:30px;padding:4px 10px;font-size:12px;">${remixLabel}</button></h3>
-      <div class="script-lines">
-        ${convo.map(l=>`<div class="script-line"><b style="color:${l.who==='A'?'var(--who)':'var(--thing)'}">${l.who}:</b> ${escapeHTML(l.text)}</div>`).join('')}
+    <div class="finale-layout">
+      <div class="finale-left">
+        <div class="card finale-instructions">
+          <h3>${finaleJapanese?'やること':'What to do'}</h3>
+          <ol class="instruction-list">${instructions.map(x=>`<li>${escapeHTML(x)}</li>`).join('')}</ol>
+        </div>
+        <div class="card sentence-card">
+          <h3>${finaleJapanese?'作った文':'Your sentence board'}</h3>
+          ${sentences.length?sentences.map((s,i)=>`<p><b>${i+1}.</b> ${escapeHTML(s.text)}</p>`).join(''):`<p>${finaleJapanese?'まだ文がありません。':'No sentences yet.'}</p>`}
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <h3>${state.japanese?'これを聞こう':'Ask these'}</h3>
-      <div class="question-list">${q.map(x=>`<div class="q-card"><b>${escapeHTML(x.q)}</b><div>${escapeHTML(x.hint)}</div></div>`).join('')}</div>
-    </div>
-    <div class="card">
-      <h3>${state.japanese?'みんなで投票':'Peer vote finale'}</h3>
-      <p>${state.japanese?'各グループが一番いい文を読む。他のグループは質問を1つ。一番おもしろい文に投票しよう（長さではなく内容で）。':'Each group reads their best sentence. Other groups ask one follow-up question. Vote for the most interesting sentence, not the longest one.'}</p>
-      <ul>
-        <li>${state.japanese?'おもしろい考え？':'Interesting idea?'}</li>
-        <li>${state.japanese?'自然な英語？':'Natural English?'}</li>
-        <li>${state.japanese?'いい受け答え？':'Good follow-up answer?'}</li>
-      </ul>
+      <div class="card conversation-card">
+        <h3>${finaleJapanese?'会話':'Your conversation'} <button class="btn" id="remakeConvoBtn" style="float:right;min-height:30px;padding:4px 10px;font-size:12px;">${finaleJapanese?'↻ 作り直す':'↻ Remix'}</button></h3>
+        <div class="script-lines">
+          ${convo.map(l=>`<div class="script-line"><b style="color:${l.who==='A'?'var(--who)':'var(--thing)'}">${l.who}:</b> ${escapeHTML(l.text)}</div>`).join('')}
+        </div>
+      </div>
     </div>`;
   const remake=document.getElementById('remakeConvoBtn');
   if(remake) remake.addEventListener('click',renderFinale);
 }
 function openFinale(){
+  finaleJapanese=true;
   renderFinale();
   document.getElementById('finaleOverlay').classList.add('open');
+}
+function openNextReady(){
+  document.getElementById('nextReadyBtn').textContent=state.japanese?'→ 次のステップへ':'→ Move to the next step';
+  document.getElementById('nextReadyOverlay').classList.add('open');
 }
 function render(){
   const mission = currentMission();
@@ -1586,20 +1640,22 @@ function renderLanguage(){
   document.getElementById('guideBtn').innerHTML = state.japanese ? 'Guide <span class="jp">ガイド</span>' : 'Guide';
   document.getElementById('resetBtn').textContent = state.japanese ? 'リセット' : 'Reset';
   document.getElementById('passageBtn').textContent = state.japanese ? '文章を使う' : 'Use a passage';
+  document.getElementById('processSubtitle').textContent=state.japanese?'文を作る → クエストを1つ以上クリア → 会話する → 直す → もう一度会話する！':'Make sentences → Complete at least 1 quest → Conversation → Make corrections → Have the conversation again!';
+  document.getElementById('questBoardLabel').textContent=state.japanese?'クエストボード':'Quest Board';
   document.getElementById('boardHint').textContent = state.japanese ? '言葉をタップ → 「文を作る」 → 文を選ぶ → 保存。' : 'Tap words → Build sentence → choose one → Keep. Make 3 sentences.';
   document.getElementById('rulesCard').innerHTML = state.passageMode
     ? (state.japanese?'<b>文章モード:</b> 文章にある言葉だけを、文の順番にタップ。使ったタイルは消えます。何文作れるかな？':'<b>Passage mode:</b> Tap words in sentence order. Every saved word must come from the passage, and each tile can be used once.')
     : (state.japanese
-      ? '<b>あそびかた:</b> 好きな言葉を <b>タップ</b>（順番は自由）。<b>「文を作る」</b>を押して、自然な文を選ぶ。<b>「文を保存」</b>で点数。使った言葉は消えるので、新しい文を作ろう。<b>3つ以上</b>の文と<b>ゴール1つ</b>でファイナルへ。'
-      : '<b>How to play:</b> <b>Tap</b> any words (any order). Press <b>Build sentence</b> and choose the natural one. Press <b>Keep sentence</b> for a point. Used words disappear, so make new sentences. Reach the finale with <b>3+ sentences</b> and <b>1 goal</b>.');
+      ? '<b>あそびかた:</b> 好きな言葉を <b>タップ</b>（順番は自由）。<b>「文を作る」</b>を押して、自然な文を選ぶ。<b>「文を保存」</b>で点数。使った言葉は消えるので、新しい文を作ろう。<b>3つ以上</b>の文と<b>クエスト1つ</b>で「次へ」。'
+      : '<b>How to play:</b> <b>Tap</b> any words (any order). Press <b>Build sentence</b> and choose the natural one. Press <b>Keep sentence</b> for a point. Used words disappear, so make new sentences. Unlock <b>Next</b> with <b>3+ sentences</b> and <b>1 quest</b>.');
   document.getElementById('nudgeBtn').textContent = state.japanese ? 'ヒントをちょうだい' : 'Give me a hint';
   document.getElementById('swapBtn').textContent = (state.japanese?'タイル交換':'Swap tile')+' · '+state.swapsLeft;
   document.getElementById('newTilesBtn').textContent = state.passageMode ? (state.japanese?'文章を編集':'Edit passage') : (state.japanese ? '新しいタイル' : 'New tiles');
-  document.getElementById('newMissionBtn').textContent = state.japanese ? '新ミッション' : 'New mission';
+  document.getElementById('newMissionBtn').textContent = state.japanese ? '新しいクエスト' : 'New quest';
   document.getElementById('clearBtn').textContent = state.japanese ? '消す' : 'Clear';
   document.getElementById('checkBtn').textContent = state.japanese ? '文を作る' : 'Build sentence';
   document.getElementById('keepBtn').textContent = state.japanese ? '文を保存' : 'Keep sentence';
-  document.getElementById('finaleBtn').textContent = state.japanese ? '会話へ →' : 'Finale →';
+  document.getElementById('finaleBtn').textContent = state.japanese ? '次へ →' : 'Next →';
 }
 let activeOptions=[];
 function openBuilder(){
@@ -1632,7 +1688,7 @@ function buildSentence(){ openBuilder(); }
 function renderBank(){
   document.getElementById('bankCount').textContent=state.bank.length;
   const list=document.getElementById('bankList');
-  if(!state.bank.length){list.innerHTML=`<div class="empty-bank">${state.japanese?'保存した文がここに集まります。まずは3つ作ろう。':'Your kept sentences appear here. Make at least 3 to reach the finale.'}</div>`;return;}
+  if(!state.bank.length){list.innerHTML=`<div class="empty-bank">${state.japanese?'保存した文がここに集まります。まずは3つ作ろう。':'Your kept sentences appear here. Make at least 3 to unlock Next.'}</div>`;return;}
   list.innerHTML=state.bank.slice().reverse().map(b=>`
     <div class="kept">
       <div class="kept-top"><div class="sent">${escapeHTML(b.text)}</div><div class="pts">+${b.pts}</div></div>
@@ -1723,11 +1779,11 @@ function renderIntro(){
   const steps = state.japanese ? [
     {n:'1', en:'言葉をタップ', jp:'だれ・動き・もの を選ぶ（順番は自由）'},
     {n:'2', en:'「文を作る」を押す', jp:'自然な文を1つ選ぶ'},
-    {n:'3', en:'「文を保存」', jp:'3つ作ったらファイナルへ！'}
+    {n:'3', en:'「文を保存」', jp:'3文＋クエスト1つで「次へ」！'}
   ] : [
     {n:'1', en:'Tap some words', jp:'言葉をタップ（順番は自由）'},
     {n:'2', en:'Press Build sentence', jp:'「文を作る」を押して、自然な文を選ぶ'},
-    {n:'3', en:'Press Keep sentence', jp:'「文を保存」— 3文でファイナルへ！'}
+    {n:'3', en:'Press Keep sentence', jp:'「文を保存」— 3文＋クエスト1つで「次へ」！'}
   ];
   document.getElementById('introTitle').textContent = state.japanese ? 'あそびかた' : 'How to play / あそびかた';
   document.getElementById('introLead').textContent = state.japanese ? '3ステップだけ。' : 'Just three steps. / 3ステップだけ。';
@@ -1738,7 +1794,7 @@ function renderIntro(){
 }
 function openIntro(){ renderIntro(); document.getElementById('introOverlay').classList.add('open'); }
 function closeIntro(){ document.getElementById('introOverlay').classList.remove('open'); state.seenIntro=true; save(); }
-document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast(state.japanese?'新しいミッション！':'New mission!');render();});
+document.getElementById('newMissionBtn').addEventListener('click',()=>{state.bank=[];state.total=0;state.votedId=null;newBoard(false);showToast(state.japanese?'新しいクエスト！':'New quest!');render();});
 document.getElementById('newTilesBtn').addEventListener('click',()=>{
   if(state.passageMode){document.getElementById('passageInput').value=state.passageText;updatePassageCount();document.getElementById('passageOverlay').classList.add('open');return;}
   freshTiles();showToast(state.japanese?'新しいタイル！':'Fresh tiles!');render();
@@ -1750,6 +1806,8 @@ document.getElementById('checkBtn').addEventListener('click',buildSentence);
 document.getElementById('jpToggleBtn').addEventListener('click',()=>{state.japanese=!state.japanese;render();});
 document.getElementById('keepBtn').addEventListener('click',keepSentence);
 document.getElementById('finaleBtn').addEventListener('click',openFinale);
+document.getElementById('nextReadyBtn').addEventListener('click',()=>{document.getElementById('nextReadyOverlay').classList.remove('open');openFinale();});
+document.getElementById('finaleLanguageBtn').addEventListener('click',()=>{finaleJapanese=!finaleJapanese;renderFinale();});
 document.getElementById('guideBtn').addEventListener('click',openIntro);
 document.getElementById('choiceJpToggleBtn').addEventListener('click',()=>{state.japanese=!state.japanese;render();openBuilder();});
 document.getElementById('passageBtn').addEventListener('click',()=>{
